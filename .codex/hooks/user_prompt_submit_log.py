@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-LOG_PATH = Path(__file__).resolve().parent.parent / "logs" / "user-prompts.jsonl"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+LOG_PATH = REPO_ROOT / "logs" / "user-prompts.jsonl"
 
 
 def main() -> int:

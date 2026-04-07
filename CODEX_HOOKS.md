@@ -14,6 +14,6 @@
 
 ## 로그는 어디에 저장되나요?
 
-로그는 `.codex/logs/user-prompts.jsonl`에 저장됩니다.
+로그는 저장소 루트의 `logs/user-prompts.jsonl`에 저장됩니다.
 
 이 경로는 `.gitignore`에 포함되어 있어서 로그 파일 자체는 Git에 올라가지 않습니다.
