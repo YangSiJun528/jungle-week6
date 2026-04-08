@@ -101,6 +101,16 @@ static void create_test_db(char *root_template, char *db_directory, size_t db_di
 }
 
 /**
+ * @brief 테스트용 메타데이터 파일 경로를 만든다.
+ * @param path 결과 경로를 받을 버퍼
+ * @param path_size 버퍼 크기
+ * @param db_directory 기준 db 경로
+ */
+static void build_metadata_path(char *path, size_t path_size, const char *db_directory) {
+    assertTrue(snprintf(path, path_size, "%s/metadata.csv", db_directory) > 0);
+}
+
+/**
  * @brief 테스트용 임시 디렉터리를 재귀적으로 지운다.
  * @param root_directory 제거할 루트 디렉터리
  */
@@ -242,6 +252,63 @@ static void loads_metadata_from_csv_file(void) {
     assertEq(load_result.metadata.tables[0].columns[0].type, COLUMN_TYPE_NUMBER);
 
     free_metadata(&load_result.metadata);
+    remove_test_db(root_template);
+}
+
+/* 필수 테이블만 있으면 컬럼 구성이 달라도 메타데이터 로딩은 성공해야 한다. */
+static void loads_metadata_without_strict_schema_validation(void) {
+    char root_template[] = "/tmp/jungle-week6-sijun-unit-XXXXXX";
+    char db_directory[PATH_MAX];
+    char metadata_path[PATH_MAX];
+    MetadataLoadResult load_result;
+
+    /* given */
+    create_test_db(root_template, db_directory, sizeof(db_directory));
+    build_metadata_path(metadata_path, sizeof(metadata_path), db_directory);
+    write_text_file(
+        metadata_path,
+        "users,uid,NUMBER\n"
+        "users,display_name,TEXT\n"
+        "posts,pid,NUMBER\n"
+        "posts,body,TEXT\n"
+    );
+
+    /* when */
+    load_result = load_metadata_from_directory(db_directory);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertEq((long long) load_result.metadata.table_count, 2);
+    assertStrEq(load_result.metadata.tables[0].name, "users");
+    assertStrEq(load_result.metadata.tables[1].name, "posts");
+
+    free_metadata(&load_result.metadata);
+    remove_test_db(root_template);
+}
+
+/* 필수 테이블을 메타데이터에서 못 찾으면 로딩이 실패해야 한다. */
+static void rejects_metadata_when_required_table_is_missing(void) {
+    char root_template[] = "/tmp/jungle-week6-sijun-unit-XXXXXX";
+    char db_directory[PATH_MAX];
+    char metadata_path[PATH_MAX];
+    MetadataLoadResult load_result;
+
+    /* given */
+    create_test_db(root_template, db_directory, sizeof(db_directory));
+    build_metadata_path(metadata_path, sizeof(metadata_path), db_directory);
+    write_text_file(
+        metadata_path,
+        "users,id,NUMBER\n"
+        "users,name,TEXT\n"
+    );
+
+    /* when */
+    load_result = load_metadata_from_directory(db_directory);
+
+    /* then */
+    assertStrEq(load_result.error_message, "missing required table in metadata");
+    assertEq((long long) load_result.metadata.table_count, 0);
+
     remove_test_db(root_template);
 }
 
@@ -495,6 +562,8 @@ int main(void) {
     parses_select_query();
     parses_insert_query_values();
     loads_metadata_from_csv_file();
+    loads_metadata_without_strict_schema_validation();
+    rejects_metadata_when_required_table_is_missing();
     finds_table_metadata_by_name();
     rejects_insert_when_value_count_differs();
     executes_insert_query_to_csv();

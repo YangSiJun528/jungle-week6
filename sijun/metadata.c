@@ -7,13 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct {
-    const char *table_name;
-    const char *const *column_names;
-    const ColumnType *column_types;
-    size_t column_count;
-} ExpectedTableSchema;
-
 static bool init_table_metadata(
     TableMetadata *table,
     const char *table_name,
@@ -35,7 +28,7 @@ static bool append_metadata_column(
     ColumnType column_type
 );
 static bool ensure_table_slot(DatabaseMetadata *metadata, const char *table_name, TableMetadata **out_table);
-static bool validate_loaded_metadata(const DatabaseMetadata *metadata);
+static bool has_required_tables(const DatabaseMetadata *metadata);
 
 /**
  * @brief 실행에 필요한 메타데이터를 로드한다.
@@ -85,9 +78,9 @@ MetadataLoadResult load_metadata_from_directory(const char *db_directory) {
 
     fclose(stream);
 
-    if (!validate_loaded_metadata(&result.metadata)) {
+    if (!has_required_tables(&result.metadata)) {
         free_metadata(&result.metadata);
-        result.error_message = "invalid metadata schema";
+        result.error_message = "missing required table in metadata";
         return result;
     }
 
@@ -495,45 +488,11 @@ static bool ensure_table_slot(DatabaseMetadata *metadata, const char *table_name
 }
 
 /**
- * @brief 로드된 메타데이터가 고정된 users/posts 스키마와 일치하는지 검사한다.
+ * @brief 로드된 메타데이터에 필수 테이블이 있는지 검사한다.
  * @param metadata 검사할 메타데이터
- * @return 일치하면 1, 아니면 0
+ * @return users와 posts가 모두 있으면 1, 아니면 0
  */
-static bool validate_loaded_metadata(const DatabaseMetadata *metadata) {
-    static const char *const users_column_names[] = {"id", "name", "role"};
-    static const ColumnType users_column_types[] = {COLUMN_TYPE_NUMBER, COLUMN_TYPE_TEXT, COLUMN_TYPE_TEXT};
-    static const char *const posts_column_names[] = {"id", "title", "content"};
-    static const ColumnType posts_column_types[] = {COLUMN_TYPE_NUMBER, COLUMN_TYPE_TEXT, COLUMN_TYPE_TEXT};
-    static const ExpectedTableSchema expected_tables[] = {
-        {"users", users_column_names, users_column_types, 3},
-        {"posts", posts_column_names, posts_column_types, 3}
-    };
-    size_t table_index;
-    size_t column_index;
-
-    if (metadata->table_count != 2) {
-        return false;
-    }
-
-    for (table_index = 0; table_index < 2; ++table_index) {
-        const TableMetadata *table = find_table_metadata(metadata, expected_tables[table_index].table_name);
-
-        if (table == NULL) {
-            return false;
-        }
-        if (table->column_count != expected_tables[table_index].column_count) {
-            return false;
-        }
-
-        for (column_index = 0; column_index < table->column_count; ++column_index) {
-            if (strcmp(table->columns[column_index].name, expected_tables[table_index].column_names[column_index]) != 0) {
-                return false;
-            }
-            if (table->columns[column_index].type != expected_tables[table_index].column_types[column_index]) {
-                return false;
-            }
-        }
-    }
-
-    return true;
+static bool has_required_tables(const DatabaseMetadata *metadata) {
+    return find_table_metadata(metadata, "users") != NULL
+        && find_table_metadata(metadata, "posts") != NULL;
 }
