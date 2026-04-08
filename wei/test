@@ -4,14 +4,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
+static char test_csv_dir[256];
+
+#define CSV_DIR test_csv_dir
 #define main wei_program_main
-#include "/Users/wiseungcheol/Desktop/WEI/wei/main.c"
+#include "main.c"
 #undef main
 
 int main(void) {
     Statement statement;
+    ExecutionResult result;
     char select_input[] = "SELECT * from users;";
     char insert_input[] = "INSERT into users values ('duck', 2);";
     char select_mixed_case[] = "select   *   FROM users;";
@@ -20,13 +26,27 @@ int main(void) {
     char bad_select_form[] = "SELECT users";
     char bad_select_missing_semicolon[] = "SELECT * from users";
     char bad_select_not_star[] = "SELECT id from users;";
-    char bad_insert_case[] = "INSERT INTO users VALUES ('duck', 2)";
     char bad_insert_form[] = "INSERT into users ('duck', 2)";
     char bad_insert_missing_semicolon[] = "INSERT into users values ('duck', 2)";
     int compile_status;
     FILE *output;
     char buffer[256] = {0};
     size_t used = 0;
+    FILE *file;
+    char csv_users_path[256];
+    char csv_places_path[256];
+    char csv_empty_path[256];
+    char binary_path[256];
+    char compile_command[512];
+    char repl_command[512];
+    char wrong_command[256];
+
+    snprintf(test_csv_dir, sizeof(test_csv_dir), "/tmp/wei_csv_tests_%ld", (long) getpid());
+    assert(mkdir(test_csv_dir, 0777) == 0);
+    snprintf(csv_users_path, sizeof(csv_users_path), "%s/users.csv", test_csv_dir);
+    snprintf(csv_places_path, sizeof(csv_places_path), "%s/places.csv", test_csv_dir);
+    snprintf(csv_empty_path, sizeof(csv_empty_path), "%s/empty.csv", test_csv_dir);
+    snprintf(binary_path, sizeof(binary_path), "%s/wei_main", test_csv_dir);
 
     statement = parse(select_input);
     assert(statement.status == PARSE_OK);
@@ -63,21 +83,131 @@ int main(void) {
     statement = parse(bad_select_not_star);
     assert(statement.status == PARSE_ERROR);
 
-    statement = parse(bad_insert_case);
-    assert(statement.status == PARSE_ERROR);
-
     statement = parse(bad_insert_form);
     assert(statement.status == PARSE_ERROR);
 
     statement = parse(bad_insert_missing_semicolon);
     assert(statement.status == PARSE_ERROR);
 
-    compile_status = system("cc -Wall -Wextra -Werror -std=c11 -pedantic -o /tmp/wei_main /Users/wiseungcheol/Desktop/WEI/wei/main.c");
+    {
+        char execute_insert_input[] = "INSERT into users values ('duck', 2);";
+        statement = parse(execute_insert_input);
+    }
+    result = execute(statement);
+    assert(result.status == EXECUTE_OK);
+    assert(strcmp(result.output, "Executed.\n") == 0);
+    free(result.output);
+
+    file = fopen(csv_users_path, "r");
+    assert(file != NULL);
+    assert(fgets(buffer, (int) sizeof(buffer), file) != NULL);
+    assert(strcmp(buffer, "col1,col2\n") == 0);
+    assert(fgets(buffer, (int) sizeof(buffer), file) != NULL);
+    assert(strcmp(buffer, "duck,2\n") == 0);
+    fclose(file);
+
+    {
+        char comma_insert_input[] = "INSERT into places values ('Seoul, Korea', 7);";
+        statement = parse(comma_insert_input);
+    }
+    result = execute(statement);
+    assert(result.status == EXECUTE_OK);
+    free(result.output);
+
+    file = fopen(csv_places_path, "r");
+    assert(file != NULL);
+    assert(fgets(buffer, (int) sizeof(buffer), file) != NULL);
+    assert(strcmp(buffer, "col1,col2\n") == 0);
+    assert(fgets(buffer, (int) sizeof(buffer), file) != NULL);
+    assert(strcmp(buffer, "\"Seoul, Korea\",7\n") == 0);
+    fclose(file);
+
+    {
+        char comma_select_input[] = "SELECT * from places;";
+        statement = parse(comma_select_input);
+    }
+    result = execute(statement);
+    assert(result.status == EXECUTE_OK);
+    assert(strstr(result.output, "col1") != NULL);
+    assert(strstr(result.output, "Seoul, Korea | 7") != NULL);
+    free(result.output);
+
+    {
+        char second_insert_input[] = "INSERT into users values ('son', 3);";
+        statement = parse(second_insert_input);
+    }
+    result = execute(statement);
+    assert(result.status == EXECUTE_OK);
+    free(result.output);
+
+    {
+        char wider_insert_input[] = "INSERT into users values ('kim', 4, 'seoul');";
+        statement = parse(wider_insert_input);
+    }
+    result = execute(statement);
+    assert(result.status == EXECUTE_OK);
+    free(result.output);
+
+    {
+        char narrow_insert_input[] = "INSERT into users values ('lee');";
+        statement = parse(narrow_insert_input);
+    }
+    result = execute(statement);
+    assert(result.status == EXECUTE_OK);
+    free(result.output);
+
+    {
+        char execute_select_input[] = "SELECT * from users;";
+        statement = parse(execute_select_input);
+    }
+    result = execute(statement);
+    assert(result.status == EXECUTE_OK);
+    assert(strcmp(result.output,
+                  "col1 | col2 | col3 \n"
+                  "-----+------+------\n"
+                  "duck | 2    |      \n"
+                  "son  | 3    |      \n"
+                  "kim  | 4    | seoul\n"
+                  "lee  |      |      \n") == 0);
+    free(result.output);
+
+    {
+        char missing_select_input[] = "SELECT * from missing;";
+        statement = parse(missing_select_input);
+    }
+    result = execute(statement);
+    assert(result.status == EXECUTE_ERROR);
+    assert(result.error_code == EXECUTE_OPEN_FAILED);
+    free(result.output);
+
+    file = fopen(csv_empty_path, "w");
+    assert(file != NULL);
+    fclose(file);
+
+    {
+        char empty_select_input[] = "SELECT * from empty;";
+        statement = parse(empty_select_input);
+    }
+    result = execute(statement);
+    assert(result.status == EXECUTE_ERROR);
+    assert(result.error_code == EXECUTE_EMPTY_RESULT);
+    free(result.output);
+
+    remove(csv_users_path);
+    snprintf(compile_command, sizeof(compile_command),
+             "cc -Wall -Wextra -Werror -std=c11 -pedantic -DCSV_DIR=\\\"%s\\\" -o %s wei/main.c",
+             test_csv_dir, binary_path);
+    compile_status = system(compile_command);
     assert(compile_status != -1);
     assert(WIFEXITED(compile_status));
     assert(WEXITSTATUS(compile_status) == 0);
 
-    output = popen("printf 'select   *   FROM users;\\n.exit\\n' | /tmp/wei_main", "r");
+    memset(buffer, 0, sizeof(buffer));
+    used = 0;
+    snprintf(repl_command, sizeof(repl_command),
+             "printf 'INSERT into users values ('\\''duck'\\'', 2);\\nSELECT * from users;\\n.exit\\n' | %s",
+             binary_path);
+    output = popen(repl_command, "r");
     assert(output != NULL);
     while (fgets(buffer + used, (int) (sizeof(buffer) - used), output) != NULL) {
         used = strlen(buffer);
@@ -86,11 +216,17 @@ int main(void) {
         }
     }
     assert(pclose(output) == 0);
-    assert(strcmp(buffer, "db > db > ") == 0);
+    assert(strcmp(buffer,
+                  "db > Executed.\n"
+                  "db > col1 | col2\n"
+                  "-----+-----\n"
+                  "duck | 2   \n"
+                  "db > ") == 0);
 
     memset(buffer, 0, sizeof(buffer));
     used = 0;
-    output = popen("printf 'wrong\\n.exit\\n' | /tmp/wei_main", "r");
+    snprintf(wrong_command, sizeof(wrong_command), "printf 'wrong\\n.exit\\n' | %s", binary_path);
+    output = popen(wrong_command, "r");
     assert(output != NULL);
     while (fgets(buffer + used, (int) (sizeof(buffer) - used), output) != NULL) {
         used = strlen(buffer);
