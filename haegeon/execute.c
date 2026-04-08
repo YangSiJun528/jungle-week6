@@ -7,7 +7,8 @@
 
 enum {
     EXECUTE_TABLE_PATH_SIZE = 256,
-    EXECUTE_ROW_BUFFER_SIZE = (STATEMENT_MAX_VALUES * (PARSED_VALUE_TEXT_SIZE + 4)) + 4
+    EXECUTE_ROW_BUFFER_SIZE =
+        (STATEMENT_MAX_VALUES * ((PARSED_VALUE_TEXT_SIZE * 2) + 3)) + 1
 };
 
 /**
@@ -78,7 +79,65 @@ static int append_format(char *buffer,
 }
 
 /**
- * @brief INSERT 문장의 값 목록을 저장용 한 줄 문자열로 직렬화한다.
+ * @brief 문자열 버퍼 뒤에 문자 하나를 이어 붙인다.
+ * @param buffer 결과를 저장할 버퍼다.
+ * @param buffer_size 버퍼 크기다.
+ * @param offset 현재까지 채운 길이다.
+ * @param ch 추가할 문자다.
+ * @return 성공 시 EXECUTE_OK, 실패 시 EXECUTE_ERROR_ROW_FORMAT_TOO_LONG 을 반환한다.
+ */
+static int append_char(char *buffer,
+                       size_t buffer_size,
+                       size_t *offset,
+                       char ch) {
+    if (*offset + 1 >= buffer_size) {
+        return EXECUTE_ERROR_ROW_FORMAT_TOO_LONG;
+    }
+
+    buffer[*offset] = ch;
+    *offset += 1;
+    buffer[*offset] = '\0';
+    return EXECUTE_OK;
+}
+
+/**
+ * @brief 문자열 값을 CSV 필드 형식으로 직렬화한다.
+ * @param text CSV로 직렬화할 문자열이다.
+ * @param buffer 직렬화 결과를 저장할 버퍼다.
+ * @param buffer_size 버퍼 크기다.
+ * @param offset 현재까지 채운 길이다.
+ * @return 성공 시 EXECUTE_OK, 실패 시 EXECUTE_ERROR_ROW_FORMAT_TOO_LONG 을 반환한다.
+ */
+static int append_csv_string(const char *text,
+                             char *buffer,
+                             size_t buffer_size,
+                             size_t *offset) {
+    int result;
+
+    result = append_char(buffer, buffer_size, offset, '"');
+    if (result != EXECUTE_OK) {
+        return result;
+    }
+
+    while (*text != '\0') {
+        if (*text == '"') {
+            result = append_format(buffer, buffer_size, offset, "\"\"");
+        } else {
+            result = append_char(buffer, buffer_size, offset, *text);
+        }
+
+        if (result != EXECUTE_OK) {
+            return result;
+        }
+
+        text++;
+    }
+
+    return append_char(buffer, buffer_size, offset, '"');
+}
+
+/**
+ * @brief INSERT 문장의 값 목록을 CSV 한 줄 문자열로 직렬화한다.
  * @param statement 직렬화할 INSERT 문장 구조체다.
  * @param buffer 직렬화 결과를 저장할 버퍼다.
  * @param buffer_size 버퍼 크기다.
@@ -91,22 +150,19 @@ static int serialize_insert_row(const Statement *statement,
     int index;
     int result;
 
-    result = append_format(buffer, buffer_size, &offset, "(");
-    if (result != EXECUTE_OK) {
-        return result;
-    }
+    buffer[0] = '\0';
 
     for (index = 0; index < statement->value_count; index++) {
         if (index != 0) {
-            result = append_format(buffer, buffer_size, &offset, ", ");
+            result = append_char(buffer, buffer_size, &offset, ',');
             if (result != EXECUTE_OK) {
                 return result;
             }
         }
 
         if (statement->values[index].type == VALUE_STRING) {
-            result = append_format(buffer, buffer_size, &offset, "'%s'",
-                                   statement->values[index].text);
+            result = append_csv_string(statement->values[index].text,
+                                       buffer, buffer_size, &offset);
         } else {
             result = append_format(buffer, buffer_size, &offset, "%s",
                                    statement->values[index].text);
@@ -117,7 +173,7 @@ static int serialize_insert_row(const Statement *statement,
         }
     }
 
-    return append_format(buffer, buffer_size, &offset, ")");
+    return EXECUTE_OK;
 }
 
 /**

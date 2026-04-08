@@ -3,6 +3,7 @@
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "execute.h"
 #include "parse.h"
@@ -77,6 +78,33 @@ static void print_execute_summary(FILE *out,
 }
 
 /**
+ * @brief 현재 실행이 대화형 모드인지 확인한다.
+ * @param in 입력 스트림이다.
+ * @param out 출력 스트림이다.
+ * @return 대화형 모드이면 1, 아니면 0을 반환한다.
+ */
+static int should_print_prompt(FILE *in, FILE *out) {
+    return isatty(fileno(in)) && isatty(fileno(out));
+}
+
+/**
+ * @brief 대화형 입력 프롬프트를 출력한다.
+ * @param out 프롬프트를 기록할 출력 스트림이다.
+ * @return 성공 시 0, 실패 시 1을 반환한다.
+ */
+static int print_prompt(FILE *out) {
+    if (fputs("db> ", out) == EOF) {
+        return 1;
+    }
+
+    if (fflush(out) != 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
+/**
  * @brief 입력 스트림에서 SQL을 읽어 parse와 execute를 순서대로 수행한다.
  * @param in SQL 입력을 읽을 스트림이다.
  * @param out 정상 출력 스트림이다.
@@ -88,6 +116,7 @@ int run_cli(FILE *in, FILE *out, FILE *err, const char *db_dir) {
     char sql[CLI_INPUT_BUFFER_SIZE];
     Statement statement;
     ExecuteResponse execute_response;
+    int interactive_mode;
     int parse_result;
     int execute_result;
     int had_error = 0;
@@ -96,7 +125,19 @@ int run_cli(FILE *in, FILE *out, FILE *err, const char *db_dir) {
         return 1;
     }
 
-    while (fgets(sql, sizeof(sql), in) != NULL) {
+    interactive_mode = should_print_prompt(in, out);
+
+    while (1) {
+        if (interactive_mode && print_prompt(out) != 0) {
+            fprintf(err, "[main] prompt write failed.\n");
+            had_error = 1;
+            break;
+        }
+
+        if (fgets(sql, sizeof(sql), in) == NULL) {
+            break;
+        }
+
         if (is_exit_command(sql)) {
             break;
         }
