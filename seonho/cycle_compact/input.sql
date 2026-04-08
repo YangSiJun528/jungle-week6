@@ -1,5 +1,3 @@
-insert 1 a@a.com
-insert 2 b@b.com
-insert 3 c@c.com
-select
+insert into usertbl values ('덕배', 2, 'db2', '010-1234-5678', '감기')
+select * from usertbl
 .exit
