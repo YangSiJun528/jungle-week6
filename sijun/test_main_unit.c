@@ -260,6 +260,132 @@ static void exits_on_crlf_exit_command(void) {
     assert(strcmp(error_buffer, "") == 0);
 }
 
+/* select 문은 테이블명을 파싱해야 한다. */
+static void parses_select_query(void) {
+    ParseResult result = parse("select * from users");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assert(result.error_message == NULL);
+    assert(result.type == QUERY_TYPE_SELECT);
+    assert(strcmp(result.table_name, "users") == 0);
+    assert(result.value_count == 0);
+
+    free_parse_result(&result);
+}
+
+/* 앞뒤 공백이 있어도 select 문은 파싱해야 한다. */
+static void parses_select_query_with_surrounding_whitespace(void) {
+    ParseResult result = parse(" \n\tselect * from members \t");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assert(result.error_message == NULL);
+    assert(result.type == QUERY_TYPE_SELECT);
+    assert(strcmp(result.table_name, "members") == 0);
+
+    free_parse_result(&result);
+}
+
+/* insert 문은 숫자 문자열 식별자를 모두 파싱해야 한다. */
+static void parses_insert_query_values(void) {
+    ParseResult result = parse("insert into users values (1, 'kim min', admin_1)");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assert(result.error_message == NULL);
+    assert(result.type == QUERY_TYPE_INSERT);
+    assert(strcmp(result.table_name, "users") == 0);
+    assert(result.value_count == 3);
+    assert(result.values[0].type == VALUE_TYPE_NUMBER);
+    assert(strcmp(result.values[0].text, "1") == 0);
+    assert(result.values[1].type == VALUE_TYPE_STRING);
+    assert(strcmp(result.values[1].text, "kim min") == 0);
+    assert(result.values[2].type == VALUE_TYPE_IDENTIFIER);
+    assert(strcmp(result.values[2].text, "admin_1") == 0);
+
+    free_parse_result(&result);
+}
+
+/* insert 문은 괄호 주변 공백을 허용해야 한다. */
+static void parses_insert_query_with_flexible_whitespace(void) {
+    ParseResult result = parse("insert into logs values\t( foo ,42,'bar' )");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assert(result.error_message == NULL);
+    assert(result.type == QUERY_TYPE_INSERT);
+    assert(strcmp(result.table_name, "logs") == 0);
+    assert(result.value_count == 3);
+
+    free_parse_result(&result);
+}
+
+/* 식별자는 문자로 시작해야 한다. */
+static void rejects_table_name_starting_with_digit(void) {
+    ParseResult result = parse("select * from 123users");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assert(result.type == QUERY_TYPE_INVALID);
+    assert(strcmp(result.error_message, "expected identifier") == 0);
+    assert(result.error_position == 14);
+}
+
+/* 문자열에는 정의된 문자만 허용해야 한다. */
+static void rejects_invalid_string_character(void) {
+    ParseResult result = parse("insert into users values ('a@a.com')");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assert(result.type == QUERY_TYPE_INVALID);
+    assert(strcmp(result.error_message, "invalid string character") == 0);
+}
+
+/* value list는 비어 있을 수 없다. */
+static void rejects_empty_value_list(void) {
+    ParseResult result = parse("insert into users values ()");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assert(result.type == QUERY_TYPE_INVALID);
+    assert(strcmp(result.error_message, "expected value") == 0);
+}
+
+/* trailing input이 있으면 실패해야 한다. */
+static void rejects_trailing_input(void) {
+    ParseResult result = parse("select * from users extra");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assert(result.type == QUERY_TYPE_INVALID);
+    assert(strcmp(result.error_message, "unexpected trailing input") == 0);
+}
+
 int main(void) {
     trims_trailing_newline();
     trims_trailing_crlf();
@@ -274,5 +400,13 @@ int main(void) {
     continues_after_unknown_command();
     exits_cleanly_on_eof();
     exits_on_crlf_exit_command();
+    parses_select_query();
+    parses_select_query_with_surrounding_whitespace();
+    parses_insert_query_values();
+    parses_insert_query_with_flexible_whitespace();
+    rejects_table_name_starting_with_digit();
+    rejects_invalid_string_character();
+    rejects_empty_value_list();
+    rejects_trailing_input();
     return 0;
 }
