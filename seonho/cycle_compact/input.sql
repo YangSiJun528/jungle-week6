@@ -1,5 +1,3 @@
-insert hi into table2
-insert hello into table2
-select * from table2
-select * from table1
+insert into usertbl values ('덕배', 2, 'db2', '010-1234-5678', '감기')
+select * from usertbl
 .exit
