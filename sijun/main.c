@@ -29,11 +29,9 @@ size_t trim_newline(char *line, ssize_t length) {
 /**
  * @brief 입력 한 줄을 해석해 다음 동작을 결정한다.
  * @param line 개행이 제거된 입력 문자열
- * @param error_buffer 에러 메시지를 기록할 버퍼
- * @param error_buffer_size 에러 버퍼 크기
  * @return 입력 처리 결과
  */
-LineAction evaluate_line(char *line, char *error_buffer, size_t error_buffer_size) {
+LineAction evaluate_line(char *line) {
     LineAction action;
 
     if (line[0] == '\0') {
@@ -49,9 +47,8 @@ LineAction evaluate_line(char *line, char *error_buffer, size_t error_buffer_siz
             return action;
         }
 
-        snprintf(error_buffer, error_buffer_size, "Unknown command: %s", line);
         action.type = LINE_ACTION_ERROR;
-        action.message = error_buffer;
+        action.message = line;
         return action;
     }
 
@@ -70,14 +67,13 @@ LineAction evaluate_line(char *line, char *error_buffer, size_t error_buffer_siz
 int run_repl(FILE *input_stream, FILE *output_stream, FILE *error_stream) {
     char *line = NULL;
     size_t capacity = 0;
-    char error_buffer[1024];
     ssize_t line_length;
 
     while ((line_length = getline(&line, &capacity, input_stream)) != -1) {
         LineAction action;
 
         trim_newline(line, line_length);
-        action = evaluate_line(line, error_buffer, sizeof(error_buffer));
+        action = evaluate_line(line);
 
         if (action.type == LINE_ACTION_SKIP) {
             continue;
@@ -86,7 +82,7 @@ int run_repl(FILE *input_stream, FILE *output_stream, FILE *error_stream) {
             break;
         }
         if (action.type == LINE_ACTION_ERROR) {
-            fprintf(error_stream, "%s\n", action.message);
+            fprintf(error_stream, "Unknown command: %s\n", action.message);
             continue;
         }
 
