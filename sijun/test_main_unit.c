@@ -110,12 +110,11 @@ static void keeps_line_without_newline(void) {
 /* 빈 줄은 건너뛰어야 한다. */
 static void skips_empty_line(void) {
     char line[] = "";
-    char error_buffer[64];
 
     /* given */
 
     /* when */
-    LineAction action = evaluate_line(line, error_buffer, sizeof(error_buffer));
+    LineAction action = evaluate_line(line);
 
     /* then */
     assert(action.type == LINE_ACTION_SKIP);
@@ -125,12 +124,11 @@ static void skips_empty_line(void) {
 /* 공백만 있는 줄은 그대로 출력해야 한다. */
 static void prints_whitespace_only_line(void) {
     char line[] = "   ";
-    char error_buffer[64];
 
     /* given */
 
     /* when */
-    LineAction action = evaluate_line(line, error_buffer, sizeof(error_buffer));
+    LineAction action = evaluate_line(line);
 
     /* then */
     assert(action.type == LINE_ACTION_PRINT);
@@ -140,12 +138,11 @@ static void prints_whitespace_only_line(void) {
 /* 일반 텍스트는 그대로 출력해야 한다. */
 static void prints_plain_text(void) {
     char line[] = "hello";
-    char error_buffer[64];
 
     /* given */
 
     /* when */
-    LineAction action = evaluate_line(line, error_buffer, sizeof(error_buffer));
+    LineAction action = evaluate_line(line);
 
     /* then */
     assert(action.type == LINE_ACTION_PRINT);
@@ -155,12 +152,11 @@ static void prints_plain_text(void) {
 /* .exit는 종료 동작이어야 한다. */
 static void exits_on_exit_command(void) {
     char line[] = ".exit";
-    char error_buffer[64];
 
     /* given */
 
     /* when */
-    LineAction action = evaluate_line(line, error_buffer, sizeof(error_buffer));
+    LineAction action = evaluate_line(line);
 
     /* then */
     assert(action.type == LINE_ACTION_EXIT);
@@ -170,23 +166,21 @@ static void exits_on_exit_command(void) {
 /* 알 수 없는 점 명령은 에러 메시지를 만들어야 한다. */
 static void reports_unknown_command(void) {
     char line[] = ".unknown";
-    char error_buffer[64];
 
     /* given */
 
     /* when */
-    LineAction action = evaluate_line(line, error_buffer, sizeof(error_buffer));
+    LineAction action = evaluate_line(line);
 
     /* then */
     assert(action.type == LINE_ACTION_ERROR);
-    assert(strcmp(action.message, "Unknown command: .unknown") == 0);
+    assert(strcmp(action.message, ".unknown") == 0);
 }
 
 /* 긴 문자열도 잘리지 않고 그대로 반환해야 한다. */
 static void preserves_long_line(void) {
     enum { LONG_SIZE = 8192 };
     static char line[LONG_SIZE];
-    char error_buffer[64];
 
     /* given */
     for (int i = 0; i < LONG_SIZE - 1; ++i) {
@@ -195,7 +189,7 @@ static void preserves_long_line(void) {
     line[LONG_SIZE - 1] = '\0';
 
     /* when */
-    LineAction action = evaluate_line(line, error_buffer, sizeof(error_buffer));
+    LineAction action = evaluate_line(line);
 
     /* then */
     assert(action.type == LINE_ACTION_PRINT);

@@ -34,11 +34,9 @@ size_t trim_newline(char *line, ssize_t length);
 /**
  * @brief 입력 한 줄을 해석해 다음 동작을 결정한다.
  * @param line 개행이 제거된 입력 문자열
- * @param error_buffer 에러 메시지를 기록할 버퍼
- * @param error_buffer_size 에러 버퍼 크기
  * @return 입력 처리 결과
  */
-LineAction evaluate_line(char *line, char *error_buffer, size_t error_buffer_size);
+LineAction evaluate_line(char *line);
 
 /**
  * @brief 입력 스트림을 읽어 출력 스트림으로 결과를 기록한다.
