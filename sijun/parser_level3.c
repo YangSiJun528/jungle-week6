@@ -18,11 +18,6 @@ bool parse_value(Parser *parser, SqlValue *out) {
     if (ch == '\'') {
         return parse_string(parser, out);
     }
-    if (is_identifier_start(ch)) {
-        out->type = VALUE_TYPE_IDENTIFIER;
-        return parse_identifier(parser, &out->text);
-    }
-
     set_parse_error(parser, "expected value");
     return false;
 }

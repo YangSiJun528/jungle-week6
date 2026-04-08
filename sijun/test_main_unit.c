@@ -209,7 +209,7 @@ static void parses_select_query(void) {
 
 /* insert 문은 숫자 문자열 식별자를 모두 파싱해야 한다. */
 static void parses_insert_query_values(void) {
-    ParseResult result = parse("insert into users values (1, 'kim min', admin_1);");
+    ParseResult result = parse("insert into users values (1, 'kim min', 'admin_1');");
 
     /* given */
 
@@ -224,10 +224,23 @@ static void parses_insert_query_values(void) {
     assertStrEq(result.values[0].text, "1");
     assertEq(result.values[1].type, VALUE_TYPE_STRING);
     assertStrEq(result.values[1].text, "kim min");
-    assertEq(result.values[2].type, VALUE_TYPE_IDENTIFIER);
+    assertEq(result.values[2].type, VALUE_TYPE_STRING);
     assertStrEq(result.values[2].text, "admin_1");
 
     free_parse_result(&result);
+}
+
+/* insert 값의 텍스트는 작은따옴표 문자열이어야 한다. */
+static void rejects_bare_identifier_value_in_insert(void) {
+    ParseResult result = parse("insert into users values (1, 'kim min', admin_1);");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertEq(result.type, QUERY_TYPE_INVALID);
+    assertStrEq(result.error_message, "expected value");
 }
 
 /* 쿼리 끝에는 세미콜론이 반드시 있어야 한다. */
@@ -388,7 +401,7 @@ static void executes_insert_query_to_csv(void) {
     create_test_db(root_template, db_directory, sizeof(db_directory));
     assertTrue(snprintf(users_path, sizeof(users_path), "%s/users.csv", db_directory) > 0);
     load_result = load_metadata_from_directory(db_directory);
-    result = parse("insert into users values (3, 'park', guest);");
+    result = parse("insert into users values (3, 'park', 'guest');");
     output_stream = tmpfile();
     assertTrue(output_stream != NULL);
 
@@ -552,6 +565,43 @@ static void reports_uninterpretable_plain_text(void) {
     remove_test_db(root_template);
 }
 
+/* 따옴표 없는 텍스트 값은 parse error가 나야 한다. */
+static void reports_parse_error_for_unquoted_text_value(void) {
+    char root_template[] = "/tmp/jungle-week6-sijun-unit-XXXXXX";
+    char db_directory[PATH_MAX];
+    char output_buffer[1024];
+    char error_buffer[64];
+
+    /* given */
+    create_test_db(root_template, db_directory, sizeof(db_directory));
+
+    /* when */
+    int result = run_repl_with_text(
+        "insert into posts values (12, 'draft', note);\n"
+        "select * from posts;\n"
+        ".exit\n",
+        db_directory,
+        output_buffer,
+        sizeof(output_buffer),
+        error_buffer,
+        sizeof(error_buffer)
+    );
+
+    /* then */
+    assertEq(result, OK);
+    assertStrEq(
+        output_buffer,
+        "> > id | title  | content    \n"
+        "---+--------+------------\n"
+        "10 | hello  | first post \n"
+        "11 | notice | second post\n"
+        "> "
+    );
+    assertStrEq(error_buffer, "Parse error: expected value\n");
+
+    remove_test_db(root_template);
+}
+
 /* insert 후 select 하면 변경된 데이터가 조회되어야 한다. */
 static void runs_insert_then_select_in_repl(void) {
     char root_template[] = "/tmp/jungle-week6-sijun-unit-XXXXXX";
@@ -564,7 +614,7 @@ static void runs_insert_then_select_in_repl(void) {
 
     /* when */
     int result = run_repl_with_text(
-        "insert into posts values (12, 'draft', note);\n"
+        "insert into posts values (12, 'draft', 'note');\n"
         "select * from posts;\n"
         ".exit\n",
         db_directory,
@@ -596,6 +646,7 @@ int main(void) {
     exits_on_exit_command();
     parses_select_query();
     parses_insert_query_values();
+    rejects_bare_identifier_value_in_insert();
     rejects_query_without_semicolon();
     loads_metadata_from_csv_file();
     loads_metadata_without_strict_schema_validation();
@@ -608,6 +659,7 @@ int main(void) {
     rejects_select_when_row_column_count_differs();
     reports_parse_error_for_sql_like_input();
     reports_uninterpretable_plain_text();
+    reports_parse_error_for_unquoted_text_value();
     runs_insert_then_select_in_repl();
     return 0;
 }

@@ -280,7 +280,7 @@ static bool is_value_compatible(ColumnType column_type, ValueType value_type) {
         return value_type == VALUE_TYPE_NUMBER;
     }
 
-    return value_type == VALUE_TYPE_STRING || value_type == VALUE_TYPE_IDENTIFIER;
+    return value_type == VALUE_TYPE_STRING;
 }
 
 /**

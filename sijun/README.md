@@ -206,7 +206,7 @@ value_list  = value, { ws, ",", ws, value } ;
 
 table_name  = identifier ;
 
-value       = number | string | identifier ;
+value       = number | string ;
 
 identifier  = letter, { letter | digit | "_" } ;
 
@@ -238,6 +238,7 @@ digit       = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 - 키워드는 현재 구현상 소문자 리터럴만 허용한다. 예: `select`, `insert`
 - `insert ... values ()` 같은 빈 value list는 허용하지 않는다.
 - 문장 끝의 `;` 는 반드시 필요하다.
+- 텍스트 값은 반드시 작은따옴표 문자열이어야 한다. 예: `'guest'`
 
 ---
 
@@ -281,9 +282,9 @@ ctest --preset default
 예시는 [`manual_test.sql`](/Users/sijun-yang/Documents/GitHub/jungle-week6/sijun/manual_test.sql) 를 보면 된다.
 
 ```sql
-insert into users values (3, 'park', guest);
+insert into users values (3, 'park', 'guest');
 select * from users;
-insert into posts values (12, 'draft', note);
+insert into posts values (12, 'draft', 'note');
 select * from posts;
 .exit
 ```

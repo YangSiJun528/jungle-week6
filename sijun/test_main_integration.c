@@ -137,7 +137,7 @@ static void executes_insert_then_select(const char *program_path) {
     snprintf(
         command,
         sizeof(command),
-        "cd \"%s\" && printf 'insert into posts values (11, ''notice'', draft);\\nselect * from posts;\\n.exit\\n' | \"%s\"",
+        "cd \"%s\" && printf \"insert into posts values (11, 'notice', 'draft');\\nselect * from posts;\\n.exit\\n\" | \"%s\"",
         root_template,
         program_path
     );
@@ -160,31 +160,10 @@ static void executes_insert_then_select(const char *program_path) {
     remove_test_workspace(root_template);
 }
 
-/* malformed SQL은 parse error를 stderr에 출력해야 한다. */
-static void reports_parse_error_for_invalid_sql(const char *program_path) {
-    char output[128];
-    char root_template[] = "/tmp/jungle-week6-sijun-int-XXXXXX";
-    char command[PATH_MAX * 3];
-
-    /* given */
-    create_test_workspace(root_template);
-    snprintf(command, sizeof(command), "cd \"%s\" && printf 'select from users;\\n.exit\\n' | \"%s\" 2>&1", root_template, program_path);
-
-    /* when */
-    int exit_code = run_command(command, output, sizeof(output));
-
-    /* then */
-    assertEq(exit_code, OK);
-    assertStrEq(output, "Parse error: unexpected token\n> > ");
-
-    remove_test_workspace(root_template);
-}
-
 int main(int argc, char *argv[]) {
     assertEq(argc, 2);
 
     reports_uninterpretable_plain_text(argv[1]);
     executes_insert_then_select(argv[1]);
-    reports_parse_error_for_invalid_sql(argv[1]);
     return 0;
 }
