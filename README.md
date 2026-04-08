@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/files/readme_qr.png" alt="README QR Code" width="220">
+</p>
+
 # 수요코딩회 발표 보고서
 
 ## 1. 한눈에 보기
