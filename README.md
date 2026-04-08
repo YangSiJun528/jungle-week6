@@ -78,6 +78,14 @@ def repl():
 
 이후 전체적인 구현 계획과 사이클 설정
 
+<details>
+<summary>구현 계획 문서 보기</summary>
+
+<p align="center">
+  <img src="./docs/files/notion_1.png" alt="구현 계획 보기" width="85%">
+</p>
+</details>
+
 ### 5-2. 공부 -> 개발 -> 리뷰 사이클 반복
 
 구현 단계에서는 `공부 -> 개발 -> 리뷰` 사이클을 반복
@@ -87,6 +95,37 @@ def repl():
 | 공부 | 핵심 개념과 최소 명세 정리 |
 | 개발 | 각자 작은 범위로 구현 |
 | 리뷰 | Github PR 코드 리뷰 |
+
+#### 첫 번째 싸이클로 나온 결과물 예시
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+int main(void) {
+    char sql[1024];
+
+    /* stdin에서 한 줄씩 입력받는다. */
+    while (fgets(sql, sizeof(sql), stdin) != NULL) {
+        /* 종료 명령이 들어오면 반복을 끝내고 프로그램을 종료한다. */
+        if (strcmp(sql, ".exit\n") == 0 || strcmp(sql, ".quit\n") == 0) {
+            break;
+        }
+
+        /* 빈 줄은 무시한다. */
+        if (sql[0] == '\n') {
+            continue;
+        }
+
+        /* 지금은 parser / executor가 없으므로 흐름만 출력으로 흉내 낸다. */
+        printf("[main] input: %s", sql);
+        printf("[parser placeholder] parser should make a statement here.\n");
+        printf("[executor placeholder] executor should run the statement here.\n");
+    }
+
+    return 0;
+}
+```
 
 ## 6. 결과 정리
 
