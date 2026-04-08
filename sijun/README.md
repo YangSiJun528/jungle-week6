@@ -211,4 +211,12 @@ https://cstack.github.io/db_tutorial/ << 이게 되게 괜찮았음.
 
 # README
 
-TODO: 여기 Cmake 컴파일하고 사용하는법 설명
+빌드 산출물을 저장소 밖에 두려면 `sijun` 폴더에서 아래 명령을 사용한다.
+
+```bash
+cmake --preset default
+cmake --build --preset default
+ctest --preset default
+```
+
+테스트 파일은 루트에 `test_main_unit.c`, `test_main_integration.c`로 둔다.

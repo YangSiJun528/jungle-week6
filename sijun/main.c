@@ -1,75 +1,99 @@
 #define _POSIX_C_SOURCE 200809L
 
+#include "main.h"
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "utils.h"
 
 /**
- * @brief 특별한 시스템 명령어 처리 결과를 나타낸다.
+ * @brief 문자열 끝의 개행 문자를 제거한다.
+ * @param line 수정할 문자열
+ * @return 개행 제거 후 문자열 길이
  */
-typedef enum {
-    SYSTEM_COMMAND_NOT_MATCHED,
-    SYSTEM_COMMAND_HANDLED,
-    SYSTEM_COMMAND_EXIT
-} SystemCommandResult;
+size_t trim_newline(char *line) {
+    size_t length = strlen(line);
 
-/**
- * @brief 일반 텍스트 입력을 처리하고 출력할 문자열을 반환한다.
- * @param text 개행과 특별 명령이 제거된 일반 텍스트
- * @return 출력할 문자열
- */
-static const char *process_args(const char *text) {
-    return text;
+    if (length > 0 && line[length - 1] == '\n') {
+        line[length - 1] = '\0';
+        return length - 1;
+    }
+
+    return length;
 }
 
 /**
- * @brief 점으로 시작하는 특별한 시스템 명령어를 처리한다.
- * @param input 사용자가 입력한 한 줄 전체 문자열
- * @return 명령어 처리 결과
+ * @brief 입력 한 줄을 해석해 다음 동작을 결정한다.
+ * @param line 개행이 제거된 입력 문자열
+ * @param error_buffer 에러 메시지를 기록할 버퍼
+ * @param error_buffer_size 에러 버퍼 크기
+ * @return 입력 처리 결과
  */
-static SystemCommandResult process_system_command(const char *input) {
-    if (input[0] != '.') {
-        return SYSTEM_COMMAND_NOT_MATCHED;
+LineAction evaluate_line(char *line, char *error_buffer, size_t error_buffer_size) {
+    LineAction action;
+
+    if (line[0] == '\0') {
+        action.type = LINE_ACTION_SKIP;
+        action.message = NULL;
+        return action;
     }
 
-    if (strcmp(input, ".exit") == 0) {
-        return SYSTEM_COMMAND_EXIT;
+    if (line[0] == '.') {
+        if (strcmp(line, ".exit") == 0) {
+            action.type = LINE_ACTION_EXIT;
+            action.message = NULL;
+            return action;
+        }
+
+        snprintf(error_buffer, error_buffer_size, "Unknown command: %s", line);
+        action.type = LINE_ACTION_ERROR;
+        action.message = error_buffer;
+        return action;
     }
 
-    fprintf(stderr, "Unknown command: %s\n", input);
-    return SYSTEM_COMMAND_HANDLED;
+    action.type = LINE_ACTION_PRINT;
+    action.message = line;
+    return action;
 }
 
-int main(void) {
+/**
+ * @brief 입력 스트림을 읽어 출력 스트림으로 결과를 기록한다.
+ * @param input_stream 입력 스트림
+ * @param output_stream 표준 출력용 스트림
+ * @param error_stream 표준 에러용 스트림
+ * @return 프로그램 종료 코드
+ */
+int run_repl(FILE *input_stream, FILE *output_stream, FILE *error_stream) {
     char *line = NULL;
     size_t capacity = 0;
+    char error_buffer[1024];
 
-    while (getline(&line, &capacity, stdin) != -1) {
-        size_t length = strlen(line);
-        const char *result;
-        SystemCommandResult command_result;
+    while (getline(&line, &capacity, input_stream) != -1) {
+        LineAction action;
 
-        if (length > 0 && line[length - 1] == '\n') {
-            line[length - 1] = '\0';
-        }
+        trim_newline(line);
+        action = evaluate_line(line, error_buffer, sizeof(error_buffer));
 
-        if (line[0] == '\0') {
+        if (action.type == LINE_ACTION_SKIP) {
             continue;
         }
-
-        command_result = process_system_command(line);
-        if (command_result == SYSTEM_COMMAND_EXIT) {
+        if (action.type == LINE_ACTION_EXIT) {
             break;
         }
-        if (command_result == SYSTEM_COMMAND_HANDLED) {
+        if (action.type == LINE_ACTION_ERROR) {
+            fprintf(error_stream, "%s\n", action.message);
             continue;
         }
 
-        result = process_args(line);
-        printf("%s\n", result);
+        fprintf(output_stream, "%s\n", action.message);
     }
 
     free(line);
     return OK;
 }
+
+#ifndef SIJUN_TEST_BUILD
+int main(void) {
+    return run_repl(stdin, stdout, stderr);
+}
+#endif
