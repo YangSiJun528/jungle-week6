@@ -1,0 +1,6 @@
+users,id,NUMBER
+users,name,TEXT
+users,role,TEXT
+posts,id,NUMBER
+posts,title,TEXT
+posts,content,TEXT

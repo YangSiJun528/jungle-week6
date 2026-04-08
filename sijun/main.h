@@ -102,6 +102,14 @@ typedef struct {
 } SemanticCheckResult;
 
 /**
+ * @brief 쿼리 실행 결과를 담는다.
+ */
+typedef struct {
+    bool ok;
+    const char *error_message;
+} QueryExecutionResult;
+
+/**
  * @brief 경량 SQL 문자열을 EBNF 규칙에 따라 파싱한다.
  * @param input 파싱할 SQL 문자열
  * @return 파싱 결과
@@ -119,6 +127,13 @@ void free_parse_result(ParseResult *result);
  * @return 메타데이터 로딩 결과
  */
 MetadataLoadResult load_metadata(void);
+
+/**
+ * @brief 지정한 DB 디렉터리에서 메타데이터를 로드한다.
+ * @param db_directory metadata.csv가 있는 디렉터리 경로
+ * @return 메타데이터 로딩 결과
+ */
+MetadataLoadResult load_metadata_from_directory(const char *db_directory);
 
 /**
  * @brief load_metadata()가 할당한 메모리를 해제한다.
@@ -143,6 +158,21 @@ const TableMetadata *find_table_metadata(const DatabaseMetadata *metadata, const
 SemanticCheckResult validate_query_against_metadata(const DatabaseMetadata *metadata, const ParseResult *result);
 
 /**
+ * @brief 파싱된 쿼리를 CSV 기반 저장소에 실행한다.
+ * @param metadata 실행에 사용할 메타데이터
+ * @param result 실행할 파싱 결과
+ * @param db_directory CSV 파일이 있는 디렉터리 경로
+ * @param output_stream 실행 결과를 기록할 출력 스트림
+ * @return 실행 결과
+ */
+QueryExecutionResult execute_query(
+    const DatabaseMetadata *metadata,
+    const ParseResult *result,
+    const char *db_directory,
+    FILE *output_stream
+);
+
+/**
  * @brief 입력 스트림을 읽어 출력 스트림으로 결과를 기록한다.
  * @param input_stream 입력 스트림
  * @param output_stream 표준 출력용 스트림
@@ -150,5 +180,20 @@ SemanticCheckResult validate_query_against_metadata(const DatabaseMetadata *meta
  * @return 프로그램 종료 코드
  */
 int run_repl(FILE *input_stream, FILE *output_stream, FILE *error_stream);
+
+/**
+ * @brief 지정한 DB 디렉터리를 사용해 입력 스트림을 읽어 결과를 기록한다.
+ * @param input_stream 입력 스트림
+ * @param output_stream 표준 출력용 스트림
+ * @param error_stream 표준 에러용 스트림
+ * @param db_directory CSV 파일이 있는 디렉터리 경로
+ * @return 프로그램 종료 코드
+ */
+int run_repl_with_database_dir(
+    FILE *input_stream,
+    FILE *output_stream,
+    FILE *error_stream,
+    const char *db_directory
+);
 
 #endif

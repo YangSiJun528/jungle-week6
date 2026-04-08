@@ -7,6 +7,7 @@ enable_testing()
 
 add_library(
     sijun_core
+    executor.c
     parser.c
     parser_level2.c
     parser_level3.c
