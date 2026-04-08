@@ -1,23 +1,31 @@
 #include <stdio.h>
 #include <string.h>
 
-typedef enum { BAD, INSERT, SELECT } Type;
+int read_sql_line(FILE *input, char *buffer, int size) {
+    if (fgets(buffer, size, input) == NULL) {
+        return 0;
+    }
 
-
-
+    buffer[strcspn(buffer, "\n")] = '\0';
+    return 1;
+}
 
 #ifndef TESTING
 int main(void) {
     char sql[1024];
 
+    while (read_sql_line(stdin, sql, sizeof(sql))) {
+        if (sql[0] == '\0') {
+            continue;
+        }
 
-    while (fgets(sql, sizeof(sql), stdin)) {
-        sql[strcspn(sql, "\n")] = 0;
-        if (!sql[0]) continue;
-        if (!strcmp(sql, ".exit")) break;
-        printf(sql);
-        if (s.type == BAD) printf("parse error\n");
+        if (strcmp(sql, ".exit") == 0) {
+            break;
+        }
+
+        printf("input: %s\n", sql);
     }
+
     return 0;
 }
 #endif
