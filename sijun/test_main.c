@@ -1,3 +1,8 @@
+/*
+ * 이 파일은 단위 테스트가 아니라 실행 파일 기준의 통합 테스트다.
+ * ctest가 test_main을 실행하면서 sijun 실행 파일 경로를 인자로 넘기고,
+ * test_main은 popen()으로 해당 프로그램을 실제 실행해 표준 출력과 종료 코드를 검증한다.
+ */
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
