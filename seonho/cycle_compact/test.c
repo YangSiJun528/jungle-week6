@@ -6,48 +6,31 @@
 #include <string.h>
 
 int main(void) {
-    char ins1[] = "insert 1 a@a.com";
-    char ins2[] = "insert 2 b@b.com";
-    char sel[] = "select";
-    char buf[512];
-    Stmt s;
-    FILE *fp;
-    FILE *out;
+    char buffer[1024];
+    FILE *input = tmpfile();
 
-    s = parse(ins1);
-    assert(s.type == INSERT);
-    assert(s.id == 1);
-    assert(strcmp(s.mail, "a@a.com") == 0);
+    assert(input != NULL);
 
-    s = parse(sel);
-    assert(s.type == SELECT);
+    fputs("insert 1 a@a.com\n", input);
+    fputs("\n", input);
+    fputs("select\n", input);
+    fputs(".exit\n", input);
+    rewind(input);
 
-    fp = fopen("test.csv", "w");
-    assert(fp);
-    fputs("id,mail\n", fp);
-    fclose(fp);
+    assert(read_sql_line(input, buffer, sizeof(buffer)) == 1);
+    assert(strcmp(buffer, "insert 1 a@a.com") == 0);
 
-    out = tmpfile();
-    assert(out);
-    s = parse(ins1);
-    assert(run(s, "test.csv", out) == 0);
-    s = parse(ins2);
-    assert(run(s, "test.csv", out) == 0);
-    fclose(out);
+    assert(read_sql_line(input, buffer, sizeof(buffer)) == 1);
+    assert(strcmp(buffer, "") == 0);
 
-    out = tmpfile();
-    assert(out);
-    s = parse(sel);
-    assert(run(s, "test.csv", out) == 0);
-    rewind(out);
+    assert(read_sql_line(input, buffer, sizeof(buffer)) == 1);
+    assert(strcmp(buffer, "select") == 0);
 
-    assert(fgets(buf, sizeof(buf), out));
-    assert(strcmp(buf, "1 a@a.com\n") == 0);
-    assert(fgets(buf, sizeof(buf), out));
-    assert(strcmp(buf, "2 b@b.com\n") == 0);
-    assert(!fgets(buf, sizeof(buf), out));
+    assert(read_sql_line(input, buffer, sizeof(buffer)) == 1);
+    assert(strcmp(buffer, ".exit") == 0);
 
-    fclose(out);
-    remove("test.csv");
+    assert(read_sql_line(input, buffer, sizeof(buffer)) == 0);
+
+    fclose(input);
     return 0;
 }
