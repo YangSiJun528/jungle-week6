@@ -510,7 +510,7 @@ static void rejects_select_when_row_column_count_differs(void) {
     remove_test_db(root_template);
 }
 
-/* SQL parse 실패는 더 이상 원문을 출력하지 않고 parse error를 남겨야 한다. */
+/* SQL parse 실패에도 프롬프트는 출력하고 parse error를 남겨야 한다. */
 static void reports_parse_error_for_sql_like_input(void) {
     char root_template[] = "/tmp/jungle-week6-sijun-unit-XXXXXX";
     char db_directory[PATH_MAX];
@@ -525,8 +525,29 @@ static void reports_parse_error_for_sql_like_input(void) {
 
     /* then */
     assertEq(result, OK);
-    assertStrEq(output_buffer, "");
+    assertStrEq(output_buffer, "> > ");
     assertStrEq(error_buffer, "Parse error: unexpected token\n");
+
+    remove_test_db(root_template);
+}
+
+/* SQL이 아닌 일반 입력은 해석 실패 메시지를 출력해야 한다. */
+static void reports_uninterpretable_plain_text(void) {
+    char root_template[] = "/tmp/jungle-week6-sijun-unit-XXXXXX";
+    char db_directory[PATH_MAX];
+    char output_buffer[128];
+    char error_buffer[32];
+
+    /* given */
+    create_test_db(root_template, db_directory, sizeof(db_directory));
+
+    /* when */
+    int result = run_repl_with_text("asdf\n.exit\n", db_directory, output_buffer, sizeof(output_buffer), error_buffer, sizeof(error_buffer));
+
+    /* then */
+    assertEq(result, OK);
+    assertStrEq(output_buffer, "> 해석할 수 없는 입력입니다.\n> ");
+    assertStrEq(error_buffer, "");
 
     remove_test_db(root_template);
 }
@@ -557,12 +578,13 @@ static void runs_insert_then_select_in_repl(void) {
     assertEq(result, OK);
     assertStrEq(
         output_buffer,
-        "1 row inserted\n"
-        "id | title  | content    \n"
+        "> 1 row inserted\n"
+        "> id | title  | content    \n"
         "---+--------+------------\n"
         "10 | hello  | first post \n"
         "11 | notice | second post\n"
         "12 | draft  | note       \n"
+        "> "
     );
     assertStrEq(error_buffer, "");
 
@@ -585,6 +607,7 @@ int main(void) {
     executes_select_query_for_empty_table();
     rejects_select_when_row_column_count_differs();
     reports_parse_error_for_sql_like_input();
+    reports_uninterpretable_plain_text();
     runs_insert_then_select_in_repl();
     return 0;
 }

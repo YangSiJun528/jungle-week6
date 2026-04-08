@@ -9,6 +9,7 @@
 
 static bool starts_with_sql_keyword(const char *line);
 static bool starts_with_keyword(const char *line, const char *keyword);
+static bool print_prompt(FILE *output_stream);
 
 /**
  * @brief 입력 스트림을 읽어 출력 스트림으로 결과를 기록한다.
@@ -45,8 +46,19 @@ int run_repl_with_database_dir(
         return ERR;
     }
 
-    while ((line_length = getline(&line, &capacity, input_stream)) != -1) {
+    while (1) {
         LineAction action;
+
+        if (!print_prompt(output_stream)) {
+            free_metadata(&metadata_result.metadata);
+            free(line);
+            return ERR;
+        }
+
+        line_length = getline(&line, &capacity, input_stream);
+        if (line_length == -1) {
+            break;
+        }
 
         trim_newline(line, line_length);
         action = evaluate_line(line);
@@ -102,7 +114,7 @@ int run_repl_with_database_dir(
             free_parse_result(&parse_result);
         }
 
-        fprintf(output_stream, "%s\n", action.message);
+        fprintf(output_stream, "해석할 수 없는 입력입니다.\n");
     }
 
     free_metadata(&metadata_result.metadata);
@@ -138,6 +150,15 @@ static bool starts_with_keyword(const char *line, const char *keyword) {
     }
 
     return line[keyword_length] == '\0' || isspace((unsigned char) line[keyword_length]);
+}
+
+/**
+ * @brief 출력 스트림에 프롬프트를 기록한다.
+ * @param output_stream 기록할 출력 스트림
+ * @return 성공하면 1, 실패하면 0
+ */
+static bool print_prompt(FILE *output_stream) {
+    return fputs("> ", output_stream) != EOF;
 }
 
 /**

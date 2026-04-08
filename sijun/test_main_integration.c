@@ -106,9 +106,9 @@ static void remove_test_workspace(const char *root_directory) {
     assertEq(system(command), 0);
 }
 
-/* 일반 텍스트 뒤 .exit를 입력하면 같은 문자열만 출력하고 종료해야 한다. */
-static void prints_text_until_exit(const char *program_path) {
-    char output[64];
+/* 일반 텍스트는 해석 실패 메시지를 출력해야 한다. */
+static void reports_uninterpretable_plain_text(const char *program_path) {
+    char output[128];
     char root_template[] = "/tmp/jungle-week6-sijun-int-XXXXXX";
     char command[PATH_MAX * 3];
 
@@ -121,7 +121,7 @@ static void prints_text_until_exit(const char *program_path) {
 
     /* then */
     assertEq(exit_code, OK);
-    assertStrEq(output, "hello\n");
+    assertStrEq(output, "> 해석할 수 없는 입력입니다.\n> ");
 
     remove_test_workspace(root_template);
 }
@@ -149,11 +149,12 @@ static void executes_insert_then_select(const char *program_path) {
     assertEq(exit_code, OK);
     assertStrEq(
         output,
-        "1 row inserted\n"
-        "id | title  | content   \n"
+        "> 1 row inserted\n"
+        "> id | title  | content   \n"
         "---+--------+-----------\n"
         "10 | hello  | first post\n"
         "11 | notice | draft     \n"
+        "> "
     );
 
     remove_test_workspace(root_template);
@@ -174,7 +175,7 @@ static void reports_parse_error_for_invalid_sql(const char *program_path) {
 
     /* then */
     assertEq(exit_code, OK);
-    assertStrEq(output, "Parse error: unexpected token\n");
+    assertStrEq(output, "Parse error: unexpected token\n> > ");
 
     remove_test_workspace(root_template);
 }
@@ -182,7 +183,7 @@ static void reports_parse_error_for_invalid_sql(const char *program_path) {
 int main(int argc, char *argv[]) {
     assertEq(argc, 2);
 
-    prints_text_until_exit(argv[1]);
+    reports_uninterpretable_plain_text(argv[1]);
     executes_insert_then_select(argv[1]);
     reports_parse_error_for_invalid_sql(argv[1]);
     return 0;
