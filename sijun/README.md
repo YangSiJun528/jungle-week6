@@ -195,7 +195,7 @@ SQLite에 대한 분석이 들어가는데,
 지금 구현은 아래 EBNF를 기준으로 동작한다.
 
 ```ebnf
-query       = ws, (select_query | insert_query), ws ;
+query       = ws, (select_query | insert_query), ws, ";", ws ;
 
 select_query = "select", req_ws, "*", req_ws, "from", req_ws, table_name ;
 
@@ -237,7 +237,7 @@ digit       = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 
 - 키워드는 현재 구현상 소문자 리터럴만 허용한다. 예: `select`, `insert`
 - `insert ... values ()` 같은 빈 value list는 허용하지 않는다.
-- 문장 끝의 `;` 는 현재 허용하지 않는다.
+- 문장 끝의 `;` 는 반드시 필요하다.
 
 ---
 

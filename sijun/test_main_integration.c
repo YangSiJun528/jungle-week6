@@ -137,7 +137,7 @@ static void executes_insert_then_select(const char *program_path) {
     snprintf(
         command,
         sizeof(command),
-        "cd \"%s\" && printf 'insert into posts values (11, ''notice'', draft)\\nselect * from posts\\n.exit\\n' | \"%s\"",
+        "cd \"%s\" && printf 'insert into posts values (11, ''notice'', draft);\\nselect * from posts;\\n.exit\\n' | \"%s\"",
         root_template,
         program_path
     );
@@ -167,7 +167,7 @@ static void reports_parse_error_for_invalid_sql(const char *program_path) {
 
     /* given */
     create_test_workspace(root_template);
-    snprintf(command, sizeof(command), "cd \"%s\" && printf 'select from users\\n.exit\\n' | \"%s\" 2>&1", root_template, program_path);
+    snprintf(command, sizeof(command), "cd \"%s\" && printf 'select from users;\\n.exit\\n' | \"%s\" 2>&1", root_template, program_path);
 
     /* when */
     int exit_code = run_command(command, output, sizeof(output));

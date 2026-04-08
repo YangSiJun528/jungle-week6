@@ -192,7 +192,7 @@ static void exits_on_exit_command(void) {
 
 /* select 문은 테이블명을 파싱해야 한다. */
 static void parses_select_query(void) {
-    ParseResult result = parse("select * from users");
+    ParseResult result = parse("select * from users;");
 
     /* given */
 
@@ -209,7 +209,7 @@ static void parses_select_query(void) {
 
 /* insert 문은 숫자 문자열 식별자를 모두 파싱해야 한다. */
 static void parses_insert_query_values(void) {
-    ParseResult result = parse("insert into users values (1, 'kim min', admin_1)");
+    ParseResult result = parse("insert into users values (1, 'kim min', admin_1);");
 
     /* given */
 
@@ -228,6 +228,19 @@ static void parses_insert_query_values(void) {
     assertStrEq(result.values[2].text, "admin_1");
 
     free_parse_result(&result);
+}
+
+/* 쿼리 끝에는 세미콜론이 반드시 있어야 한다. */
+static void rejects_query_without_semicolon(void) {
+    ParseResult result = parse("select * from users");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertEq(result.type, QUERY_TYPE_INVALID);
+    assertStrEq(result.error_message, "expected ;");
 }
 
 /* 메타데이터 로더는 users와 posts를 파일에서 읽어야 한다. */
@@ -347,7 +360,7 @@ static void rejects_insert_when_value_count_differs(void) {
     /* given */
     create_test_db(root_template, db_directory, sizeof(db_directory));
     load_result = load_metadata_from_directory(db_directory);
-    result = parse("insert into users values (1, 'kim min')");
+    result = parse("insert into users values (1, 'kim min');");
 
     /* when */
     SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
@@ -375,7 +388,7 @@ static void executes_insert_query_to_csv(void) {
     create_test_db(root_template, db_directory, sizeof(db_directory));
     assertTrue(snprintf(users_path, sizeof(users_path), "%s/users.csv", db_directory) > 0);
     load_result = load_metadata_from_directory(db_directory);
-    result = parse("insert into users values (3, 'park', guest)");
+    result = parse("insert into users values (3, 'park', guest);");
     output_stream = tmpfile();
     assertTrue(output_stream != NULL);
 
@@ -405,7 +418,7 @@ static void executes_select_query_to_ascii_table(void) {
     /* given */
     create_test_db(root_template, db_directory, sizeof(db_directory));
     load_result = load_metadata_from_directory(db_directory);
-    result = parse("select * from users");
+    result = parse("select * from users;");
     output_stream = tmpfile();
     assertTrue(output_stream != NULL);
 
@@ -444,7 +457,7 @@ static void executes_select_query_for_empty_table(void) {
     assertTrue(snprintf(posts_path, sizeof(posts_path), "%s/posts.csv", db_directory) > 0);
     write_text_file(posts_path, "");
     load_result = load_metadata_from_directory(db_directory);
-    result = parse("select * from posts");
+    result = parse("select * from posts;");
     output_stream = tmpfile();
     assertTrue(output_stream != NULL);
 
@@ -480,7 +493,7 @@ static void rejects_select_when_row_column_count_differs(void) {
     assertTrue(snprintf(users_path, sizeof(users_path), "%s/users.csv", db_directory) > 0);
     write_text_file(users_path, "1,broken\n");
     load_result = load_metadata_from_directory(db_directory);
-    result = parse("select * from users");
+    result = parse("select * from users;");
     output_stream = tmpfile();
     assertTrue(output_stream != NULL);
 
@@ -508,7 +521,7 @@ static void reports_parse_error_for_sql_like_input(void) {
     create_test_db(root_template, db_directory, sizeof(db_directory));
 
     /* when */
-    int result = run_repl_with_text("select from users\n.exit\n", db_directory, output_buffer, sizeof(output_buffer), error_buffer, sizeof(error_buffer));
+    int result = run_repl_with_text("select from users;\n.exit\n", db_directory, output_buffer, sizeof(output_buffer), error_buffer, sizeof(error_buffer));
 
     /* then */
     assertEq(result, OK);
@@ -530,8 +543,8 @@ static void runs_insert_then_select_in_repl(void) {
 
     /* when */
     int result = run_repl_with_text(
-        "insert into posts values (12, 'draft', note)\n"
-        "select * from posts\n"
+        "insert into posts values (12, 'draft', note);\n"
+        "select * from posts;\n"
         ".exit\n",
         db_directory,
         output_buffer,
@@ -561,6 +574,7 @@ int main(void) {
     exits_on_exit_command();
     parses_select_query();
     parses_insert_query_values();
+    rejects_query_without_semicolon();
     loads_metadata_from_csv_file();
     loads_metadata_without_strict_schema_validation();
     rejects_metadata_when_required_table_is_missing();
