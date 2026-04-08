@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <stdbool.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,49 +36,96 @@ static bool end_with_semicolon(char *text) {
     return true;
 }
 
+static bool match_keyword(char **text, const char *keyword) {
+    size_t index = 0;
+
+    while (keyword[index] != '\0') {
+        if ((*text)[index] == '\0' ||
+            tolower((unsigned char)(*text)[index]) != tolower((unsigned char)keyword[index])) {
+            return false;
+        }
+        index++;
+    }
+
+    *text += index;
+    return true;
+}
+
+static bool skip_spaces(char **text) {
+    bool found_space = false;
+
+    while (**text == ' ' || **text == '\t') {
+        found_space = true;
+        (*text)++;
+    }
+
+    return found_space;
+}
+
 /* parse는 입력 문자열 하나를 "해석된 문장"으로 바꾸는 가장 작은 parser 역할을 한다. */
 /* statement는 시작부터 PARSE_ERROR로 만들어 두고, 문법이 맞는 분기에서만 PARSE_OK로 바꿔 반환한다. */
 Statement parse(char *input) {
     Statement statement = {STATEMENT_NONE, PARSE_ERROR, NULL, NULL};
-    char *values_start;
+    char *cursor = input;
     char *values_end;
 
-    /* 1. SELECT 문법인지 먼저 확인한다. 이 단계는 접두어가 정확히 같은지만 본다(0이면 글자 수 같다, 음수는 적다, 양수는 많다). */
-    if (strncmp(input, "SELECT * from ", 14) == 0) {
-        /* 접두어 뒤부터가 테이블 이름이라고 가정하고 포인터를 잡는다(char :1 * 14 뒤 주소). */
-        statement.table_name = input + 14;
+    /* 1. SELECT는 키워드 대소문자를 무시하되, 문법 순서는 그대로 지킨다. */
+    if (match_keyword(&cursor, "select")) {
+        if (!skip_spaces(&cursor) || *cursor != '*') {
+            return statement;
+        }
 
-        /* SELECT는 테이블 이름이 있어야 하고, 마지막은 반드시 ';'로 끝나야 한다. */
+        cursor++;
+        if (!skip_spaces(&cursor) || !match_keyword(&cursor, "from") || !skip_spaces(&cursor)) {
+            return statement;
+        }
+
+        statement.table_name = cursor;
         if (*statement.table_name == '\0' || !end_with_semicolon(statement.table_name)) {
             return statement;
         }
 
-        /* ';'를 떼고 나면 공백 없는 단일 테이블 이름만 남아야 한다. */
         if (*statement.table_name == '\0' || strpbrk(statement.table_name, " \t") != NULL) {
             return (Statement){STATEMENT_NONE, PARSE_ERROR, NULL, NULL};
         }
 
-        /* SELECT 문법이 맞으면 타입과 상태를 채우고 즉시 반환한다. */
         statement.type = STATEMENT_SELECT;
         statement.status = PARSE_OK;
         return statement;
     }
 
-    /* 2. SELECT가 아니면 INSERT 문법인지 본다. 아니면 바로 실패다. */
-    if (strncmp(input, "INSERT into ", 12) != 0) {
+    cursor = input;
+
+    /* 2. INSERT도 같은 방식으로 키워드와 공백을 순서대로 해석한다. */
+    if (!match_keyword(&cursor, "insert") || !skip_spaces(&cursor) ||
+        !match_keyword(&cursor, "into") || !skip_spaces(&cursor)) {
         return statement;
     }
 
-    /* INSERT는 "테이블 이름 values (값들)" 형태라서 중간 경계를 찾아 분리한다. */
-    statement.table_name = input + 12;
-    values_start = strstr(statement.table_name, " values (");
-    if (values_start == NULL || values_start == statement.table_name) {
+    statement.table_name = cursor;
+
+    while (*cursor != '\0' && *cursor != ' ' && *cursor != '\t') {
+        cursor++;
+    }
+    if (cursor == statement.table_name) {
         return statement;
     }
 
-    /* " values (" 앞을 끊어서 table_name을 독립 문자열처럼 만든다. */
-    *values_start = '\0';
-    statement.values = values_start + 9;
+    if (*cursor == '\0') {
+        return statement;
+    }
+
+    /* 테이블 이름 끝을 먼저 끊어 두면 이후 values 키워드를 읽어도 이름 문자열이 섞이지 않는다. */
+    *cursor = '\0';
+    cursor++;
+
+    skip_spaces(&cursor);
+    if (!match_keyword(&cursor, "values") || !skip_spaces(&cursor) || *cursor != '(') {
+        return statement;
+    }
+
+    cursor++;
+    statement.values = cursor;
 
     /* INSERT도 SELECT와 마찬가지로 테이블 이름과 값 문자열을 먼저 분리한 뒤 ';'를 검사한다. */
     if (*statement.table_name == '\0' || strpbrk(statement.table_name, " \t") != NULL ||

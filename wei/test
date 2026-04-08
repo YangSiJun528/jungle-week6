@@ -14,6 +14,8 @@ int main(void) {
     Statement statement;
     char select_input[] = "SELECT * from users;";
     char insert_input[] = "INSERT into users values ('duck', 2);";
+    char select_mixed_case[] = "select   *   FROM users;";
+    char insert_mixed_case[] = "INSERt    into users    VALUES    ('duck', 2);";
     char bad_select_case[] = "select * from users";
     char bad_select_form[] = "SELECT users";
     char bad_select_missing_semicolon[] = "SELECT * from users";
@@ -33,6 +35,17 @@ int main(void) {
     assert(statement.values == NULL);
 
     statement = parse(insert_input);
+    assert(statement.status == PARSE_OK);
+    assert(statement.type == STATEMENT_INSERT);
+    assert(strcmp(statement.table_name, "users") == 0);
+    assert(strcmp(statement.values, "'duck', 2") == 0);
+
+    statement = parse(select_mixed_case);
+    assert(statement.status == PARSE_OK);
+    assert(statement.type == STATEMENT_SELECT);
+    assert(strcmp(statement.table_name, "users") == 0);
+
+    statement = parse(insert_mixed_case);
     assert(statement.status == PARSE_OK);
     assert(statement.type == STATEMENT_INSERT);
     assert(strcmp(statement.table_name, "users") == 0);
@@ -64,7 +77,7 @@ int main(void) {
     assert(WIFEXITED(compile_status));
     assert(WEXITSTATUS(compile_status) == 0);
 
-    output = popen("printf 'SELECT * from users;\\n.exit\\n' | /tmp/wei_main", "r");
+    output = popen("printf 'select   *   FROM users;\\n.exit\\n' | /tmp/wei_main", "r");
     assert(output != NULL);
     while (fgets(buffer + used, (int) (sizeof(buffer) - used), output) != NULL) {
         used = strlen(buffer);
