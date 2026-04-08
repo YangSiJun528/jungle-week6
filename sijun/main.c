@@ -2,6 +2,7 @@
 
 #include "main.h"
 #include "utils.h"
+#include <stdbool.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,7 +43,7 @@ static char current_char(const Parser *parser) {
  * @param ch 검사할 문자
  * @return 공백이면 1, 아니면 0
  */
-static int is_sql_whitespace(char ch) {
+static bool is_sql_whitespace(char ch) {
     return ch == ' ' || ch == '\t' || ch == '\n';
 }
 
@@ -51,7 +52,7 @@ static int is_sql_whitespace(char ch) {
  * @param ch 검사할 문자
  * @return 문자면 1, 아니면 0
  */
-static int is_identifier_start(char ch) {
+static bool is_identifier_start(char ch) {
     return isalpha((unsigned char) ch) != 0;
 }
 
@@ -60,7 +61,7 @@ static int is_identifier_start(char ch) {
  * @param ch 검사할 문자
  * @return 허용 문자면 1, 아니면 0
  */
-static int is_identifier_char(char ch) {
+static bool is_identifier_char(char ch) {
     return isalpha((unsigned char) ch) != 0 || isdigit((unsigned char) ch) != 0 || ch == '_';
 }
 
@@ -69,7 +70,7 @@ static int is_identifier_char(char ch) {
  * @param ch 검사할 문자
  * @return 허용 문자면 1, 아니면 0
  */
-static int is_string_char(char ch) {
+static bool is_string_char(char ch) {
     return is_identifier_char(ch) || ch == ' ';
 }
 
@@ -88,14 +89,14 @@ static void consume_ws(Parser *parser) {
  * @param parser 파서 상태
  * @return 성공하면 1, 실패하면 0
  */
-static int consume_req_ws(Parser *parser) {
+static bool consume_req_ws(Parser *parser) {
     if (!is_sql_whitespace(current_char(parser))) {
         set_parse_error(parser, "expected whitespace");
-        return 0;
+        return false;
     }
 
     consume_ws(parser);
-    return 1;
+    return true;
 }
 
 /**
@@ -104,16 +105,16 @@ static int consume_req_ws(Parser *parser) {
  * @param literal 기대 문자열
  * @return 성공하면 1, 실패하면 0
  */
-static int consume_literal(Parser *parser, const char *literal) {
+static bool consume_literal(Parser *parser, const char *literal) {
     size_t length = strlen(literal);
 
     if (strncmp(parser->input + parser->position, literal, length) != 0) {
         set_parse_error(parser, "unexpected token");
-        return 0;
+        return false;
     }
 
     parser->position += length;
-    return 1;
+    return true;
 }
 
 /**
@@ -140,12 +141,12 @@ static char *copy_range(const char *start, size_t length) {
  * @param out 결과 문자열
  * @return 성공하면 1, 실패하면 0
  */
-static int parse_identifier(Parser *parser, char **out) {
+static bool parse_identifier(Parser *parser, char **out) {
     size_t start = parser->position;
 
     if (!is_identifier_start(current_char(parser))) {
         set_parse_error(parser, "expected identifier");
-        return 0;
+        return false;
     }
 
     parser->position++;
@@ -156,10 +157,10 @@ static int parse_identifier(Parser *parser, char **out) {
     *out = copy_range(parser->input + start, parser->position - start);
     if (*out == NULL) {
         set_parse_error(parser, "out of memory");
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
 /**
@@ -168,12 +169,12 @@ static int parse_identifier(Parser *parser, char **out) {
  * @param out 결과 값
  * @return 성공하면 1, 실패하면 0
  */
-static int parse_number(Parser *parser, SqlValue *out) {
+static bool parse_number(Parser *parser, SqlValue *out) {
     size_t start = parser->position;
 
     if (!isdigit((unsigned char) current_char(parser))) {
         set_parse_error(parser, "expected value");
-        return 0;
+        return false;
     }
 
     parser->position++;
@@ -185,10 +186,10 @@ static int parse_number(Parser *parser, SqlValue *out) {
     out->text = copy_range(parser->input + start, parser->position - start);
     if (out->text == NULL) {
         set_parse_error(parser, "out of memory");
-        return 0;
+        return false;
     }
 
-    return 1;
+    return true;
 }
 
 /**
@@ -197,12 +198,12 @@ static int parse_number(Parser *parser, SqlValue *out) {
  * @param out 결과 값
  * @return 성공하면 1, 실패하면 0
  */
-static int parse_string(Parser *parser, SqlValue *out) {
+static bool parse_string(Parser *parser, SqlValue *out) {
     size_t start;
 
     if (current_char(parser) != '\'') {
         set_parse_error(parser, "expected value");
-        return 0;
+        return false;
     }
 
     parser->position++;
@@ -211,25 +212,25 @@ static int parse_string(Parser *parser, SqlValue *out) {
     while (current_char(parser) != '\0' && current_char(parser) != '\'') {
         if (!is_string_char(current_char(parser))) {
             set_parse_error(parser, "invalid string character");
-            return 0;
+            return false;
         }
         parser->position++;
     }
 
     if (current_char(parser) != '\'') {
         set_parse_error(parser, "unterminated string");
-        return 0;
+        return false;
     }
 
     out->type = VALUE_TYPE_STRING;
     out->text = copy_range(parser->input + start, parser->position - start);
     if (out->text == NULL) {
         set_parse_error(parser, "out of memory");
-        return 0;
+        return false;
     }
 
     parser->position++;
-    return 1;
+    return true;
 }
 
 /**
@@ -238,7 +239,7 @@ static int parse_string(Parser *parser, SqlValue *out) {
  * @param out 결과 값
  * @return 성공하면 1, 실패하면 0
  */
-static int parse_value(Parser *parser, SqlValue *out) {
+static bool parse_value(Parser *parser, SqlValue *out) {
     char ch = current_char(parser);
 
     out->text = NULL;
@@ -255,7 +256,7 @@ static int parse_value(Parser *parser, SqlValue *out) {
     }
 
     set_parse_error(parser, "expected value");
-    return 0;
+    return false;
 }
 
 /**
@@ -264,16 +265,16 @@ static int parse_value(Parser *parser, SqlValue *out) {
  * @param value 추가할 값
  * @return 성공하면 1, 실패하면 0
  */
-static int append_value(ParseResult *result, SqlValue value) {
+static bool append_value(ParseResult *result, SqlValue value) {
     SqlValue *next_values = realloc(result->values, sizeof(SqlValue) * (result->value_count + 1));
 
     if (next_values == NULL) {
-        return 0;
+        return false;
     }
 
     result->values = next_values;
     result->values[result->value_count++] = value;
-    return 1;
+    return true;
 }
 
 /**
@@ -282,16 +283,16 @@ static int append_value(ParseResult *result, SqlValue value) {
  * @param result 파싱 결과
  * @return 성공하면 1, 실패하면 0
  */
-static int parse_value_list(Parser *parser, ParseResult *result) {
+static bool parse_value_list(Parser *parser, ParseResult *result) {
     SqlValue value;
 
     if (!parse_value(parser, &value)) {
-        return 0;
+        return false;
     }
     if (!append_value(result, value)) {
         free(value.text);
         set_parse_error(parser, "out of memory");
-        return 0;
+        return false;
     }
 
     while (1) {
@@ -304,16 +305,16 @@ static int parse_value_list(Parser *parser, ParseResult *result) {
         consume_ws(parser);
 
         if (!parse_value(parser, &value)) {
-            return 0;
+            return false;
         }
         if (!append_value(result, value)) {
             free(value.text);
             set_parse_error(parser, "out of memory");
-            return 0;
+            return false;
         }
     }
 
-    return 1;
+    return true;
 }
 
 /**
@@ -322,31 +323,31 @@ static int parse_value_list(Parser *parser, ParseResult *result) {
  * @param result 파싱 결과
  * @return 성공하면 1, 실패하면 0
  */
-static int parse_select_query(Parser *parser, ParseResult *result) {
+static bool parse_select_query(Parser *parser, ParseResult *result) {
     if (!consume_literal(parser, "select")) {
-        return 0;
+        return false;
     }
     if (!consume_req_ws(parser)) {
-        return 0;
+        return false;
     }
     if (!consume_literal(parser, "*")) {
-        return 0;
+        return false;
     }
     if (!consume_req_ws(parser)) {
-        return 0;
+        return false;
     }
     if (!consume_literal(parser, "from")) {
-        return 0;
+        return false;
     }
     if (!consume_req_ws(parser)) {
-        return 0;
+        return false;
     }
     if (!parse_identifier(parser, &result->table_name)) {
-        return 0;
+        return false;
     }
 
     result->type = QUERY_TYPE_SELECT;
-    return 1;
+    return true;
 }
 
 /**
@@ -355,47 +356,47 @@ static int parse_select_query(Parser *parser, ParseResult *result) {
  * @param result 파싱 결과
  * @return 성공하면 1, 실패하면 0
  */
-static int parse_insert_query(Parser *parser, ParseResult *result) {
+static bool parse_insert_query(Parser *parser, ParseResult *result) {
     if (!consume_literal(parser, "insert")) {
-        return 0;
+        return false;
     }
     if (!consume_req_ws(parser)) {
-        return 0;
+        return false;
     }
     if (!consume_literal(parser, "into")) {
-        return 0;
+        return false;
     }
     if (!consume_req_ws(parser)) {
-        return 0;
+        return false;
     }
     if (!parse_identifier(parser, &result->table_name)) {
-        return 0;
+        return false;
     }
     if (!consume_req_ws(parser)) {
-        return 0;
+        return false;
     }
     if (!consume_literal(parser, "values")) {
-        return 0;
+        return false;
     }
     consume_ws(parser);
     if (current_char(parser) != '(') {
         set_parse_error(parser, "expected (");
-        return 0;
+        return false;
     }
     parser->position++;
     consume_ws(parser);
     if (!parse_value_list(parser, result)) {
-        return 0;
+        return false;
     }
     consume_ws(parser);
     if (current_char(parser) != ')') {
         set_parse_error(parser, "expected )");
-        return 0;
+        return false;
     }
     parser->position++;
 
     result->type = QUERY_TYPE_INSERT;
-    return 1;
+    return true;
 }
 
 /**
