@@ -1,28 +1,75 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "utils.h"
 
 /**
- * @brief 사용자 인자가 정확히 하나인지 확인하고 출력할 문자열을 반환한다.
- * @param argc 전달된 전체 인자 개수
- * @param argv 전달된 전체 인자 배열
- * @return 성공하면 첫 번째 사용자 인자 문자열, 실패하면 NULL
+ * @brief 특별한 시스템 명령어 처리 결과를 나타낸다.
  */
-static const char *process_args(int argc, char *argv[]) {
-    if (argc != 2) {
-        return NULL;
-    }
+typedef enum {
+    SYSTEM_COMMAND_NOT_MATCHED,
+    SYSTEM_COMMAND_HANDLED,
+    SYSTEM_COMMAND_EXIT
+} SystemCommandResult;
 
-    return argv[1];
+/**
+ * @brief 일반 텍스트 입력을 처리하고 출력할 문자열을 반환한다.
+ * @param text 개행과 특별 명령이 제거된 일반 텍스트
+ * @return 출력할 문자열
+ */
+static const char *process_args(const char *text) {
+    return text;
 }
 
-int main(int argc, char *argv[]) {
-    const char *result = process_args(argc, argv);
-
-    if (result == NULL) {
-        fprintf(stderr, "Usage: %s <string>\n", argv[0]);
-        return ERR;
+/**
+ * @brief 점으로 시작하는 특별한 시스템 명령어를 처리한다.
+ * @param input 사용자가 입력한 한 줄 전체 문자열
+ * @return 명령어 처리 결과
+ */
+static SystemCommandResult process_system_command(const char *input) {
+    if (input[0] != '.') {
+        return SYSTEM_COMMAND_NOT_MATCHED;
     }
 
-    printf("%s\n", result);
+    if (strcmp(input, ".exit") == 0) {
+        return SYSTEM_COMMAND_EXIT;
+    }
+
+    fprintf(stderr, "Unknown command: %s\n", input);
+    return SYSTEM_COMMAND_HANDLED;
+}
+
+int main(void) {
+    char *line = NULL;
+    size_t capacity = 0;
+
+    while (getline(&line, &capacity, stdin) != -1) {
+        size_t length = strlen(line);
+        const char *result;
+        SystemCommandResult command_result;
+
+        if (length > 0 && line[length - 1] == '\n') {
+            line[length - 1] = '\0';
+        }
+
+        if (line[0] == '\0') {
+            continue;
+        }
+
+        command_result = process_system_command(line);
+        if (command_result == SYSTEM_COMMAND_EXIT) {
+            break;
+        }
+        if (command_result == SYSTEM_COMMAND_HANDLED) {
+            continue;
+        }
+
+        result = process_args(line);
+        printf("%s\n", result);
+    }
+
+    free(line);
     return OK;
 }

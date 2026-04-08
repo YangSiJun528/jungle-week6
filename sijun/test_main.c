@@ -1,7 +1,7 @@
 /*
  * 이 파일은 단위 테스트가 아니라 실행 파일 기준의 통합 테스트다.
  * ctest가 test_main을 실행하면서 sijun 실행 파일 경로를 인자로 넘기고,
- * test_main은 popen()으로 해당 프로그램을 실제 실행해 표준 출력과 종료 코드를 검증한다.
+ * test_main은 popen()으로 해당 프로그램에 표준 입력을 흘려보낸 뒤 출력과 종료 코드를 검증한다.
  */
 #include <assert.h>
 #include <stdio.h>
@@ -10,7 +10,7 @@
 #include <sys/wait.h>
 #include "utils.h"
 
-/* 프로그램을 실행하면 종료 코드와 표준 출력을 확인할 수 있어야 한다. */
+/* 프로그램을 실행하면 종료 코드와 출력을 확인할 수 있어야 한다. */
 static int run_command(const char *command, char *output, size_t output_size) {
     FILE *pipe = popen(command, "r");
     size_t length = 0;
@@ -30,13 +30,13 @@ static int run_command(const char *command, char *output, size_t output_size) {
     return WEXITSTATUS(status);
 }
 
-/* 인자가 하나일 때 실행하면 같은 문자열을 출력해야 한다. */
-static void prints_single_argument(const char *program_path) {
+/* 일반 텍스트를 입력한 뒤 .exit 하면 같은 문자열을 출력해야 한다. */
+static void prints_single_line_until_exit(const char *program_path) {
     char output[64];
     char command[1024];
 
     /* given */
-    snprintf(command, sizeof(command), "\"%s\" hello", program_path);
+    snprintf(command, sizeof(command), "printf 'hello\\n.exit\\n' | \"%s\"", program_path);
 
     /* when */
     int exit_code = run_command(command, output, sizeof(output));
@@ -46,24 +46,40 @@ static void prints_single_argument(const char *program_path) {
     assert(strcmp(output, "hello\n") == 0);
 }
 
-/* 빈 문자열일 때 실행하면 개행만 출력해야 한다. */
-static void prints_empty_string(const char *program_path) {
-    char output[16];
+/* 빈 줄은 무시하고 다음 텍스트만 출력해야 한다. */
+static void ignores_empty_lines(const char *program_path) {
+    char output[64];
     char command[1024];
 
     /* given */
-    snprintf(command, sizeof(command), "\"%s\" \"\"", program_path);
+    snprintf(command, sizeof(command), "printf '\\nhello\\n\\n.exit\\n' | \"%s\"", program_path);
 
     /* when */
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
     assert(exit_code == OK);
-    assert(strcmp(output, "\n") == 0);
+    assert(strcmp(output, "hello\n") == 0);
 }
 
-/* 아주 긴 문자열은 실행하면 잘리지 않고 그대로 출력해야 한다. */
-static void prints_very_long_string(const char *program_path) {
+/* 공백이 있는 줄은 그대로 보존해 출력해야 한다. */
+static void preserves_whitespace(const char *program_path) {
+    char output[16];
+    char command[1024];
+
+    /* given */
+    snprintf(command, sizeof(command), "printf ' hi  \\n.exit\\n' | \"%s\"", program_path);
+
+    /* when */
+    int exit_code = run_command(command, output, sizeof(output));
+
+    /* then */
+    assert(exit_code == OK);
+    assert(strcmp(output, " hi  \n") == 0);
+}
+
+/* 아주 긴 줄은 실행하면 잘리지 않고 그대로 출력해야 한다. */
+static void prints_very_long_line(const char *program_path) {
     enum { LONG_SIZE = 8192, COMMAND_SIZE = 16384 };
     static char long_value[LONG_SIZE];
     static char command[COMMAND_SIZE];
@@ -74,7 +90,7 @@ static void prints_very_long_string(const char *program_path) {
         long_value[i] = 'a' + (i % 26);
     }
     long_value[LONG_SIZE - 1] = '\0';
-    snprintf(command, sizeof(command), "\"%s\" \"%s\"", program_path, long_value);
+    snprintf(command, sizeof(command), "printf '%s\\n.exit\\n' | \"%s\"", long_value, program_path);
 
     /* when */
     int exit_code = run_command(command, output, sizeof(output));
@@ -86,36 +102,52 @@ static void prints_very_long_string(const char *program_path) {
     assert(output[strlen(long_value)] == '\n');
 }
 
-/* 인자가 없을 때 실행하면 실패해야 한다. */
-static void fails_without_argument(const char *program_path) {
+/* .exit만 입력하면 추가 출력 없이 종료해야 한다. */
+static void exits_without_extra_output(const char *program_path) {
     char output[16];
     char command[1024];
 
     /* given */
-    snprintf(command, sizeof(command), "\"%s\"", program_path);
+    snprintf(command, sizeof(command), "printf '.exit\\n' | \"%s\"", program_path);
 
     /* when */
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
-    assert(exit_code == ERR);
+    assert(exit_code == OK);
     assert(strcmp(output, "") == 0);
 }
 
-/* 인자가 두 개 이상일 때 실행하면 실패해야 한다. */
-static void fails_with_too_many_arguments(const char *program_path) {
-    char output[16];
+/* 알 수 없는 특별 명령어는 에러를 출력한 뒤 계속 처리해야 한다. */
+static void reports_unknown_command_and_continues(const char *program_path) {
+    char output[128];
     char command[1024];
 
     /* given */
-    snprintf(command, sizeof(command), "\"%s\" first second", program_path);
+    snprintf(command, sizeof(command), "printf '.unknown\\nhello\\n.exit\\n' | \"%s\" 2>&1", program_path);
 
     /* when */
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
-    assert(exit_code == ERR);
-    assert(strcmp(output, "") == 0);
+    assert(exit_code == OK);
+    assert(strcmp(output, "Unknown command: .unknown\nhello\n") == 0);
+}
+
+/* .exit 없이 EOF가 와도 정상 종료해야 한다. */
+static void exits_on_eof(const char *program_path) {
+    char output[64];
+    char command[1024];
+
+    /* given */
+    snprintf(command, sizeof(command), "printf 'hello\\n' | \"%s\"", program_path);
+
+    /* when */
+    int exit_code = run_command(command, output, sizeof(output));
+
+    /* then */
+    assert(exit_code == OK);
+    assert(strcmp(output, "hello\n") == 0);
 }
 
 int main(int argc, char *argv[]) {
@@ -126,10 +158,12 @@ int main(int argc, char *argv[]) {
     const char *program_path = argv[1];
 
     /* then */
-    prints_single_argument(program_path);
-    prints_empty_string(program_path);
-    prints_very_long_string(program_path);
-    fails_without_argument(program_path);
-    fails_with_too_many_arguments(program_path);
+    prints_single_line_until_exit(program_path);
+    ignores_empty_lines(program_path);
+    preserves_whitespace(program_path);
+    prints_very_long_line(program_path);
+    exits_without_extra_output(program_path);
+    reports_unknown_command_and_continues(program_path);
+    exits_on_eof(program_path);
     return 0;
 }
