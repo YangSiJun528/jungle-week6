@@ -81,11 +81,45 @@ static void exits_on_crlf_exit(const char *program_path) {
     assertStrEq(output, "hello\n");
 }
 
+/* 존재하는 SQL은 메타데이터 검증을 통과하고 그대로 출력해야 한다. */
+static void prints_sql_when_metadata_validation_succeeds(const char *program_path) {
+    char output[128];
+    char command[1024];
+
+    /* given */
+    snprintf(command, sizeof(command), "printf 'select * from users\\n.exit\\n' | \"%s\"", program_path);
+
+    /* when */
+    int exit_code = run_command(command, output, sizeof(output));
+
+    /* then */
+    assertEq(exit_code, OK);
+    assertStrEq(output, "select * from users\n");
+}
+
+/* 없는 테이블을 조회하면 stdout 없이 semantic error만 나야 한다. */
+static void reports_semantic_error_for_unknown_table(const char *program_path) {
+    char output[128];
+    char command[1024];
+
+    /* given */
+    snprintf(command, sizeof(command), "printf 'select * from members\\n.exit\\n' | \"%s\" 2>&1", program_path);
+
+    /* when */
+    int exit_code = run_command(command, output, sizeof(output));
+
+    /* then */
+    assertEq(exit_code, OK);
+    assertStrEq(output, "Semantic error: unknown table\n");
+}
+
 int main(int argc, char *argv[]) {
     assertEq(argc, 2);
 
     prints_text_until_exit(argv[1]);
     prints_text_until_eof(argv[1]);
     exits_on_crlf_exit(argv[1]);
+    prints_sql_when_metadata_validation_succeeds(argv[1]);
+    reports_semantic_error_for_unknown_table(argv[1]);
     return 0;
 }

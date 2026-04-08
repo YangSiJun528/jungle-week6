@@ -412,6 +412,163 @@ static void rejects_trailing_input(void) {
     assertStrEq(result.error_message, "unexpected trailing input");
 }
 
+/* 메타데이터 로더는 하드코딩된 테이블 구조를 반환해야 한다. */
+static void loads_dummy_metadata(void) {
+    MetadataLoadResult load_result = load_metadata();
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertEq((long long) load_result.metadata.table_count, 2);
+    assertStrEq(load_result.metadata.tables[0].name, "users");
+    assertStrEq(load_result.metadata.tables[0].data_file_path, "users.csv");
+    assertEq((long long) load_result.metadata.tables[0].column_count, 3);
+    assertStrEq(load_result.metadata.tables[0].columns[0].name, "id");
+    assertEq(load_result.metadata.tables[0].columns[0].type, COLUMN_TYPE_NUMBER);
+    assertStrEq(load_result.metadata.tables[0].columns[1].name, "name");
+    assertEq(load_result.metadata.tables[0].columns[1].type, COLUMN_TYPE_TEXT);
+
+    free_metadata(&load_result.metadata);
+}
+
+/* 존재하는 테이블 메타데이터는 이름으로 찾아야 한다. */
+static void finds_table_metadata_by_name(void) {
+    MetadataLoadResult load_result = load_metadata();
+
+    /* given */
+
+    /* when */
+    const TableMetadata *table = find_table_metadata(&load_result.metadata, "logs");
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertTrue(table != NULL);
+    assertStrEq(table->name, "logs");
+    assertStrEq(table->data_file_path, "logs.csv");
+    assertEq((long long) table->column_count, 3);
+
+    free_metadata(&load_result.metadata);
+}
+
+/* 없는 테이블은 찾으면 NULL이어야 한다. */
+static void returns_null_for_missing_table_metadata(void) {
+    MetadataLoadResult load_result = load_metadata();
+
+    /* given */
+
+    /* when */
+    const TableMetadata *table = find_table_metadata(&load_result.metadata, "members");
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(table);
+
+    free_metadata(&load_result.metadata);
+}
+
+/* 존재하는 select 문은 메타데이터 검증을 통과해야 한다. */
+static void validates_select_query_against_metadata(void) {
+    MetadataLoadResult load_result = load_metadata();
+    ParseResult result = parse("select * from users");
+
+    /* given */
+
+    /* when */
+    SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(result.error_message);
+    assertEq(check.ok, 1);
+    assertNull(check.error_message);
+
+    free_parse_result(&result);
+    free_metadata(&load_result.metadata);
+}
+
+/* 없는 테이블을 select 하면 의미 검증에서 실패해야 한다. */
+static void rejects_unknown_table_in_select(void) {
+    MetadataLoadResult load_result = load_metadata();
+    ParseResult result = parse("select * from members");
+
+    /* given */
+
+    /* when */
+    SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(result.error_message);
+    assertEq(check.ok, 0);
+    assertStrEq(check.error_message, "unknown table");
+
+    free_parse_result(&result);
+    free_metadata(&load_result.metadata);
+}
+
+/* insert 값 개수는 컬럼 개수와 같아야 한다. */
+static void rejects_insert_when_value_count_differs(void) {
+    MetadataLoadResult load_result = load_metadata();
+    ParseResult result = parse("insert into users values (1, 'kim min')");
+
+    /* given */
+
+    /* when */
+    SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(result.error_message);
+    assertEq(check.ok, 0);
+    assertStrEq(check.error_message, "column count does not match value count");
+
+    free_parse_result(&result);
+    free_metadata(&load_result.metadata);
+}
+
+/* 숫자 컬럼에 문자열이 오면 insert는 실패해야 한다. */
+static void rejects_insert_when_number_column_receives_text(void) {
+    MetadataLoadResult load_result = load_metadata();
+    ParseResult result = parse("insert into users values ('one', 'kim min', admin_1)");
+
+    /* given */
+
+    /* when */
+    SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(result.error_message);
+    assertEq(check.ok, 0);
+    assertStrEq(check.error_message, "value type does not match column type");
+
+    free_parse_result(&result);
+    free_metadata(&load_result.metadata);
+}
+
+/* bare identifier는 텍스트 컬럼이면 허용해야 한다. */
+static void accepts_identifier_value_for_text_column(void) {
+    MetadataLoadResult load_result = load_metadata();
+    ParseResult result = parse("insert into users values (1, admin_1, member)");
+
+    /* given */
+
+    /* when */
+    SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(result.error_message);
+    assertEq(check.ok, 1);
+    assertNull(check.error_message);
+
+    free_parse_result(&result);
+    free_metadata(&load_result.metadata);
+}
+
 int main(void) {
     trims_trailing_newline();
     trims_trailing_crlf();
@@ -436,5 +593,13 @@ int main(void) {
     rejects_non_ascii_string_character();
     rejects_empty_value_list();
     rejects_trailing_input();
+    loads_dummy_metadata();
+    finds_table_metadata_by_name();
+    returns_null_for_missing_table_metadata();
+    validates_select_query_against_metadata();
+    rejects_unknown_table_in_select();
+    rejects_insert_when_value_count_differs();
+    rejects_insert_when_number_column_receives_text();
+    accepts_identifier_value_for_text_column();
     return 0;
 }
