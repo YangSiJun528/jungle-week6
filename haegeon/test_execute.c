@@ -165,7 +165,7 @@ static void execute_insert_appends_row_to_existing_table(void) {
 
     /* given */
     create_temp_directory(temp_dir, sizeof(temp_dir));
-    write_table_file(temp_dir, "users", "('lee', 2)\n");
+    write_table_file(temp_dir, "users", "\"lee\",2\n");
     build_table_path(temp_dir, "users", table_path, sizeof(table_path));
     initialize_insert_statement(&statement, "users");
     statement.value_count = 2;
@@ -182,7 +182,7 @@ static void execute_insert_appends_row_to_existing_table(void) {
     ASSERT_INT_EQ(1, response.rows_affected);
     ASSERT_INT_EQ(0, response.rows_returned);
     read_text_file(table_path, file_contents, sizeof(file_contents));
-    ASSERT_STR_EQ("('lee', 2)\n('kim', 1)\n", file_contents);
+    ASSERT_STR_EQ("\"lee\",2\n\"kim\",1\n", file_contents);
 
     cleanup_table_file(temp_dir, "users");
     ASSERT_INT_EQ(0, rmdir(temp_dir));
@@ -215,7 +215,40 @@ static void execute_insert_preserves_string_and_integer_format(void) {
     /* then */
     ASSERT_INT_EQ(EXECUTE_OK, result);
     read_text_file(table_path, file_contents, sizeof(file_contents));
-    ASSERT_STR_EQ("('kim', 1, 'db2')\n", file_contents);
+    ASSERT_STR_EQ("\"kim\",1,\"db2\"\n", file_contents);
+
+    cleanup_table_file(temp_dir, "users");
+    ASSERT_INT_EQ(0, rmdir(temp_dir));
+}
+
+static void execute_insert_escapes_csv_special_characters(void) {
+    char temp_dir[] = "/tmp/haegeon-execute-XXXXXX";
+    char table_path[TEST_PATH_SIZE];
+    char file_contents[TEST_BUFFER_SIZE];
+    Statement statement;
+    ExecuteResponse response = {0};
+    int result;
+
+    /* given */
+    create_temp_directory(temp_dir, sizeof(temp_dir));
+    write_table_file(temp_dir, "users", NULL);
+    build_table_path(temp_dir, "users", table_path, sizeof(table_path));
+    initialize_insert_statement(&statement, "users");
+    statement.value_count = 2;
+    statement.values[0].type = VALUE_STRING;
+    snprintf(statement.values[0].text, sizeof(statement.values[0].text),
+             "%s", "kim,lee");
+    statement.values[1].type = VALUE_STRING;
+    snprintf(statement.values[1].text, sizeof(statement.values[1].text),
+             "%s", "say \"hi\"");
+
+    /* when */
+    result = execute(&statement, temp_dir, NULL, &response);
+
+    /* then */
+    ASSERT_INT_EQ(EXECUTE_OK, result);
+    read_text_file(table_path, file_contents, sizeof(file_contents));
+    ASSERT_STR_EQ("\"kim,lee\",\"say \"\"hi\"\"\"\n", file_contents);
 
     cleanup_table_file(temp_dir, "users");
     ASSERT_INT_EQ(0, rmdir(temp_dir));
@@ -231,7 +264,7 @@ static void execute_select_prints_all_rows(void) {
 
     /* given */
     create_temp_directory(temp_dir, sizeof(temp_dir));
-    write_table_file(temp_dir, "users", "('kim', 1)\n('lee', 2)\n");
+    write_table_file(temp_dir, "users", "\"kim\",1\n\"lee\",2\n");
     initialize_select_statement(&statement, "users");
     output = tmpfile();
     ASSERT_TRUE(output != NULL);
@@ -244,7 +277,7 @@ static void execute_select_prints_all_rows(void) {
     ASSERT_INT_EQ(0, response.rows_affected);
     ASSERT_INT_EQ(2, response.rows_returned);
     read_stream(output, output_text, sizeof(output_text));
-    ASSERT_STR_EQ("('kim', 1)\n('lee', 2)\n", output_text);
+    ASSERT_STR_EQ("\"kim\",1\n\"lee\",2\n", output_text);
 
     ASSERT_INT_EQ(0, fclose(output));
     cleanup_table_file(temp_dir, "users");
@@ -408,9 +441,9 @@ static void run_cli_insert_then_select_round_trips_data(void) {
     /* then */
     ASSERT_INT_EQ(0, result);
     read_text_file(table_path, file_contents, sizeof(file_contents));
-    ASSERT_STR_EQ("('kim', 1)\n", file_contents);
+    ASSERT_STR_EQ("\"kim\",1\n", file_contents);
     read_stream(output, output_text, sizeof(output_text));
-    ASSERT_STR_CONTAINS(output_text, "('kim', 1)\n");
+    ASSERT_STR_CONTAINS(output_text, "\"kim\",1\n");
     read_stream(error, error_text, sizeof(error_text));
     ASSERT_STR_EQ("", error_text);
 
@@ -451,7 +484,7 @@ static void run_cli_continues_after_parse_error(void) {
     /* then */
     ASSERT_INT_EQ(1, result);
     read_text_file(table_path, file_contents, sizeof(file_contents));
-    ASSERT_STR_EQ("('kim', 1)\n", file_contents);
+    ASSERT_STR_EQ("\"kim\",1\n", file_contents);
     read_stream(error, error_text, sizeof(error_text));
     ASSERT_STR_CONTAINS(error_text, "[parser] parse failed with error code");
 
@@ -534,6 +567,7 @@ int main(void) {
     void (*tests[])(void) = {
         execute_insert_appends_row_to_existing_table,
         execute_insert_preserves_string_and_integer_format,
+        execute_insert_escapes_csv_special_characters,
         execute_select_prints_all_rows,
         execute_select_returns_zero_rows_for_empty_table,
         execute_fails_when_statement_is_null,
@@ -550,6 +584,7 @@ int main(void) {
     const char *test_names[] = {
         "execute_insert_appends_row_to_existing_table",
         "execute_insert_preserves_string_and_integer_format",
+        "execute_insert_escapes_csv_special_characters",
         "execute_select_prints_all_rows",
         "execute_select_returns_zero_rows_for_empty_table",
         "execute_fails_when_statement_is_null",
