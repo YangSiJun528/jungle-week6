@@ -35,6 +35,15 @@ ParseResult parse(const char *input) {
 
     if (parser.error_message == NULL) {
         consume_ws(&parser);
+        if (current_char(&parser) != ';') {
+            set_parse_error(&parser, "expected ;");
+        } else {
+            parser.position++;
+            consume_ws(&parser);
+        }
+    }
+
+    if (parser.error_message == NULL) {
         if (current_char(&parser) != '\0') {
             set_parse_error(&parser, "unexpected trailing input");
         }

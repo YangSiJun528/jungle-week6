@@ -1,9 +1,11 @@
 #define _POSIX_C_SOURCE 200809L
-
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
+#include <unistd.h>
 #include "main.h"
 #include "test_util.h"
 
@@ -33,93 +35,135 @@ static int run_command(const char *command, char *output, size_t output_size) {
     return WEXITSTATUS(status);
 }
 
-/* 일반 텍스트 뒤 .exit를 입력하면 같은 문자열만 출력하고 종료해야 한다. */
-static void prints_text_until_exit(const char *program_path) {
-    char output[64];
-    char command[1024];
+/**
+ * @brief 경로의 텍스트 파일을 덮어쓴다.
+ * @param path 기록할 파일 경로
+ * @param text 기록할 문자열
+ */
+static void write_text_file(const char *path, const char *text) {
+    FILE *stream = fopen(path, "w");
 
-    /* given */
-    snprintf(command, sizeof(command), "printf 'hello\\n.exit\\n' | \"%s\"", program_path);
-
-    /* when */
-    int exit_code = run_command(command, output, sizeof(output));
-
-    /* then */
-    assertEq(exit_code, OK);
-    assertStrEq(output, "hello\n");
+    assertTrue(stream != NULL);
+    assertTrue(fputs(text, stream) != EOF);
+    fclose(stream);
 }
 
-/* .exit 없이 EOF가 와도 마지막 입력을 출력하고 종료해야 한다. */
-static void prints_text_until_eof(const char *program_path) {
-    char output[64];
-    char command[1024];
+/**
+ * @brief mkstemp 템플릿 경로를 실제 디렉터리로 바꾼다.
+ * @param root_template 수정 가능한 템플릿 버퍼
+ */
+static void create_temp_directory(char *root_template) {
+    int file_descriptor = mkstemp(root_template);
 
-    /* given */
-    snprintf(command, sizeof(command), "printf 'hello\\n' | \"%s\"", program_path);
-
-    /* when */
-    int exit_code = run_command(command, output, sizeof(output));
-
-    /* then */
-    assertEq(exit_code, OK);
-    assertStrEq(output, "hello\n");
+    assertTrue(file_descriptor != -1);
+    close(file_descriptor);
+    assertEq(unlink(root_template), 0);
+    assertEq(mkdir(root_template, 0700), 0);
 }
 
-/* CRLF 입력의 .exit도 정상 종료해야 한다. */
-static void exits_on_crlf_exit(const char *program_path) {
-    char output[64];
-    char command[1024];
+/**
+ * @brief 통합 테스트용 작업 디렉터리를 만든다.
+ * @param root_template mkdtemp에 넘길 템플릿 버퍼
+ */
+static void create_test_workspace(char *root_template) {
+    char sijun_directory[PATH_MAX];
+    char db_directory[PATH_MAX];
+    char metadata_path[PATH_MAX];
+    char users_path[PATH_MAX];
+    char posts_path[PATH_MAX];
 
-    /* given */
-    snprintf(command, sizeof(command), "printf 'hello\\r\\n.exit\\r\\n' | \"%s\"", program_path);
+    create_temp_directory(root_template);
+    assertTrue(snprintf(sijun_directory, sizeof(sijun_directory), "%s/sijun", root_template) > 0);
+    assertTrue(snprintf(db_directory, sizeof(db_directory), "%s/sijun/db", root_template) > 0);
+    assertEq(mkdir(sijun_directory, 0700), 0);
+    assertEq(mkdir(db_directory, 0700), 0);
 
-    /* when */
-    int exit_code = run_command(command, output, sizeof(output));
+    assertTrue(snprintf(metadata_path, sizeof(metadata_path), "%s/metadata.csv", db_directory) > 0);
+    assertTrue(snprintf(users_path, sizeof(users_path), "%s/users.csv", db_directory) > 0);
+    assertTrue(snprintf(posts_path, sizeof(posts_path), "%s/posts.csv", db_directory) > 0);
 
-    /* then */
-    assertEq(exit_code, OK);
-    assertStrEq(output, "hello\n");
+    write_text_file(
+        metadata_path,
+        "users,id,NUMBER\n"
+        "users,name,TEXT\n"
+        "users,role,TEXT\n"
+        "posts,id,NUMBER\n"
+        "posts,title,TEXT\n"
+        "posts,content,TEXT\n"
+    );
+    write_text_file(users_path, "1,kim min,admin\n2,lee,member\n");
+    write_text_file(posts_path, "10,hello,first post\n");
 }
 
-/* 존재하는 SQL은 메타데이터 검증을 통과하고 그대로 출력해야 한다. */
-static void prints_sql_when_metadata_validation_succeeds(const char *program_path) {
+/**
+ * @brief 테스트용 임시 디렉터리를 재귀적으로 지운다.
+ * @param root_directory 제거할 루트 디렉터리
+ */
+static void remove_test_workspace(const char *root_directory) {
+    char command[PATH_MAX * 2];
+
+    assertTrue(snprintf(command, sizeof(command), "rm -rf \"%s\"", root_directory) > 0);
+    assertEq(system(command), 0);
+}
+
+/* 일반 텍스트는 해석 실패 메시지를 출력해야 한다. */
+static void reports_uninterpretable_plain_text(const char *program_path) {
     char output[128];
-    char command[1024];
+    char root_template[] = "/tmp/jungle-week6-sijun-int-XXXXXX";
+    char command[PATH_MAX * 3];
 
     /* given */
-    snprintf(command, sizeof(command), "printf 'select * from users\\n.exit\\n' | \"%s\"", program_path);
+    create_test_workspace(root_template);
+    snprintf(command, sizeof(command), "cd \"%s\" && printf 'hello\\n.exit\\n' | \"%s\"", root_template, program_path);
 
     /* when */
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
     assertEq(exit_code, OK);
-    assertStrEq(output, "select * from users\n");
+    assertStrEq(output, "> 해석할 수 없는 입력입니다.\n> ");
+
+    remove_test_workspace(root_template);
 }
 
-/* 없는 테이블을 조회하면 stdout 없이 semantic error만 나야 한다. */
-static void reports_semantic_error_for_unknown_table(const char *program_path) {
-    char output[128];
-    char command[1024];
+/* insert 후 select 결과가 CSV 파일 기반으로 반영되어야 한다. */
+static void executes_insert_then_select(const char *program_path) {
+    char output[512];
+    char root_template[] = "/tmp/jungle-week6-sijun-int-XXXXXX";
+    char command[PATH_MAX * 3];
 
     /* given */
-    snprintf(command, sizeof(command), "printf 'select * from members\\n.exit\\n' | \"%s\" 2>&1", program_path);
+    create_test_workspace(root_template);
+    snprintf(
+        command,
+        sizeof(command),
+        "cd \"%s\" && printf \"insert into posts values (11, 'notice', 'draft');\\nselect * from posts;\\n.exit\\n\" | \"%s\"",
+        root_template,
+        program_path
+    );
 
     /* when */
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
     assertEq(exit_code, OK);
-    assertStrEq(output, "Semantic error: unknown table\n");
+    assertStrEq(
+        output,
+        "> 1 row inserted\n"
+        "> id | title  | content   \n"
+        "---+--------+-----------\n"
+        "10 | hello  | first post\n"
+        "11 | notice | draft     \n"
+        "> "
+    );
+
+    remove_test_workspace(root_template);
 }
 
 int main(int argc, char *argv[]) {
     assertEq(argc, 2);
 
-    prints_text_until_exit(argv[1]);
-    prints_text_until_eof(argv[1]);
-    exits_on_crlf_exit(argv[1]);
-    prints_sql_when_metadata_validation_succeeds(argv[1]);
-    reports_semantic_error_for_unknown_table(argv[1]);
+    reports_uninterpretable_plain_text(argv[1]);
+    executes_insert_then_select(argv[1]);
     return 0;
 }

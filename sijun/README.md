@@ -195,7 +195,7 @@ SQLite에 대한 분석이 들어가는데,
 지금 구현은 아래 EBNF를 기준으로 동작한다.
 
 ```ebnf
-query       = ws, (select_query | insert_query), ws ;
+query       = ws, (select_query | insert_query), ws, ";", ws ;
 
 select_query = "select", req_ws, "*", req_ws, "from", req_ws, table_name ;
 
@@ -206,7 +206,7 @@ value_list  = value, { ws, ",", ws, value } ;
 
 table_name  = identifier ;
 
-value       = number | string | identifier ;
+value       = number | string ;
 
 identifier  = letter, { letter | digit | "_" } ;
 
@@ -237,7 +237,8 @@ digit       = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 
 - 키워드는 현재 구현상 소문자 리터럴만 허용한다. 예: `select`, `insert`
 - `insert ... values ()` 같은 빈 value list는 허용하지 않는다.
-- 문장 끝의 `;` 는 현재 허용하지 않는다.
+- 문장 끝의 `;` 는 반드시 필요하다.
+- 텍스트 값은 반드시 작은따옴표 문자열이어야 한다. 예: `'guest'`
 
 ---
 
@@ -267,3 +268,54 @@ ctest --preset default
 ```
 
 테스트 파일은 루트에 `test_main_unit.c`, `test_main_integration.c`로 둔다.
+
+## `.sql` 파일로 실제 실행 테스트하기
+
+프로그램은 표준 입력에서 한 줄씩 읽는다. 따라서 `.sql` 파일도 아래 규칙을 지켜야 한다.
+
+- SQL은 한 줄에 하나씩 적는다.
+- 모든 SQL 문장은 반드시 `;` 로 끝나야 한다.
+- 현재 지원하는 쿼리는 `select * from ...;` 와 `insert into ... values (...);` 뿐이다.
+- 종료는 SQL이 아니라 `.exit` 한 줄로 적는다.
+- 일반 텍스트 줄은 SQL로 처리하지 않고 그대로 출력된다.
+
+예시는 [`manual_test.sql`](/Users/sijun-yang/Documents/GitHub/jungle-week6/sijun/manual_test.sql) 를 보면 된다.
+
+```sql
+insert into users values (3, 'park', 'guest');
+select * from users;
+insert into posts values (12, 'draft', 'note');
+select * from posts;
+.exit
+```
+
+### 실행 방법
+
+`repo root` 에서 아래처럼 실행하면 된다.
+
+```bash
+cd sijun
+cmake --preset default
+cmake --build --preset default
+cd ..
+/tmp/jungle-week6-sijun-build/sijun < sijun/manual_test.sql
+```
+
+또는 `sijun` 폴더 안에서 실행할 때는 기본 DB 경로가 상대경로 `sijun/db` 이므로, 작업 디렉터리를 `repo root` 로 맞춰서 실행해야 한다.
+
+### 처리 방식
+
+- 시작 시 `sijun/db/metadata.csv` 를 읽어서 테이블 메타데이터를 구성한다.
+- `metadata.csv` 에 테이블이 하나도 없으면 시작 시 metadata error로 실패한다.
+- `select` 또는 `insert` 로 시작하는 줄은 parser가 SQL로 해석한다.
+- parse 성공 후 메타데이터 기준 semantic check를 수행한다.
+- `insert` 는 `sijun/db/{table}.csv` 마지막에 한 줄을 append 한다.
+- `select *` 는 `sijun/db/{table}.csv` 전체를 읽고 ASCII 표 형태로 stdout에 출력한다.
+- `.exit` 를 만나면 프로그램을 종료한다.
+
+### 확인 포인트
+
+- `insert into users ...;` 실행 후 [`users.csv`](/Users/sijun-yang/Documents/GitHub/jungle-week6/sijun/db/users.csv) 마지막 줄이 늘어나는지 확인한다.
+- `insert into posts ...;` 실행 후 [`posts.csv`](/Users/sijun-yang/Documents/GitHub/jungle-week6/sijun/db/posts.csv) 마지막 줄이 늘어나는지 확인한다.
+- `select * from users;` 와 `select * from posts;` 는 모든 컬럼을 표 형태로 출력해야 한다.
+- `;` 가 빠진 SQL은 `Parse error: expected ;` 로 실패해야 한다.
