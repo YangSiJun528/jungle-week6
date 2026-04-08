@@ -150,17 +150,13 @@ static int finish_with_semicolon(const char **cursor) {
 }
 
 /**
- * @brief SELECT 문 하나를 해석한다.
+ * @brief SELECT 키워드 다음부터 SELECT 문 세부 구문을 해석한다.
  * @param cursor 해석할 문자열 커서의 주소다.
  * @param out_statement 해석 결과를 기록할 구조체다.
  * @return 성공 시 PARSE_OK, 실패 시 관련 PARSE_ERROR_* 를 반환한다.
  */
-static int parse_select_statement(const char **cursor, Statement *out_statement) {
+static int parse_select_statement_details(const char **cursor, Statement *out_statement) {
     int result;
-
-    if (!match_keyword(cursor, "select")) {
-        return PARSE_ERROR_UNKNOWN_STATEMENT;
-    }
 
     skip_spaces(cursor);
 
@@ -193,17 +189,13 @@ static int parse_select_statement(const char **cursor, Statement *out_statement)
 }
 
 /**
- * @brief INSERT 문 하나를 해석한다.
+ * @brief INSERT 키워드 다음부터 INSERT 문 세부 구문을 해석한다.
  * @param cursor 해석할 문자열 커서의 주소다.
  * @param out_statement 해석 결과를 기록할 구조체다.
  * @return 성공 시 PARSE_OK, 실패 시 관련 PARSE_ERROR_* 를 반환한다.
  */
-static int parse_insert_statement(const char **cursor, Statement *out_statement) {
+static int parse_insert_statement_details(const char **cursor, Statement *out_statement) {
     int result;
-
-    if (!match_keyword(cursor, "insert")) {
-        return PARSE_ERROR_UNKNOWN_STATEMENT;
-    }
 
     skip_spaces(cursor);
 
@@ -293,7 +285,6 @@ static int parse_insert_statement(const char **cursor, Statement *out_statement)
  */
 int parse(const char *sql, Statement *out_statement) {
     const char *cursor;
-    const char *lookahead;
     Statement temporary_statement;
     int result;
 
@@ -313,12 +304,10 @@ int parse(const char *sql, Statement *out_statement) {
         return PARSE_ERROR_EMPTY_INPUT;
     }
 
-    lookahead = cursor;
-
-    if (match_keyword(&lookahead, "select")) {
-        result = parse_select_statement(&cursor, &temporary_statement);
-    } else if (match_keyword(&lookahead, "insert")) {
-        result = parse_insert_statement(&cursor, &temporary_statement);
+    if (match_keyword(&cursor, "select")) {
+        result = parse_select_statement_details(&cursor, &temporary_statement);
+    } else if (match_keyword(&cursor, "insert")) {
+        result = parse_insert_statement_details(&cursor, &temporary_statement);
     } else {
         return PARSE_ERROR_UNKNOWN_STATEMENT;
     }
