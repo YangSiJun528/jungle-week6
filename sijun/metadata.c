@@ -28,7 +28,7 @@ static bool append_metadata_column(
     ColumnType column_type
 );
 static bool ensure_table_slot(DatabaseMetadata *metadata, const char *table_name, TableMetadata **out_table);
-static bool has_required_tables(const DatabaseMetadata *metadata);
+static bool has_any_table(const DatabaseMetadata *metadata);
 
 /**
  * @brief 실행에 필요한 메타데이터를 로드한다.
@@ -78,9 +78,9 @@ MetadataLoadResult load_metadata_from_directory(const char *db_directory) {
 
     fclose(stream);
 
-    if (!has_required_tables(&result.metadata)) {
+    if (!has_any_table(&result.metadata)) {
         free_metadata(&result.metadata);
-        result.error_message = "missing required table in metadata";
+        result.error_message = "no table in metadata";
         return result;
     }
 
@@ -488,11 +488,10 @@ static bool ensure_table_slot(DatabaseMetadata *metadata, const char *table_name
 }
 
 /**
- * @brief 로드된 메타데이터에 필수 테이블이 있는지 검사한다.
+ * @brief 로드된 메타데이터에 테이블이 하나라도 있는지 검사한다.
  * @param metadata 검사할 메타데이터
- * @return users와 posts가 모두 있으면 1, 아니면 0
+ * @return 하나 이상 있으면 1, 아니면 0
  */
-static bool has_required_tables(const DatabaseMetadata *metadata) {
-    return find_table_metadata(metadata, "users") != NULL
-        && find_table_metadata(metadata, "posts") != NULL;
+static bool has_any_table(const DatabaseMetadata *metadata) {
+    return metadata != NULL && metadata->table_count > 0;
 }

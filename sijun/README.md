@@ -306,6 +306,7 @@ cd ..
 ### 처리 방식
 
 - 시작 시 `sijun/db/metadata.csv` 를 읽어서 테이블 메타데이터를 구성한다.
+- `metadata.csv` 에 테이블이 하나도 없으면 시작 시 metadata error로 실패한다.
 - `select` 또는 `insert` 로 시작하는 줄은 parser가 SQL로 해석한다.
 - parse 성공 후 메타데이터 기준 semantic check를 수행한다.
 - `insert` 는 `sijun/db/{table}.csv` 마지막에 한 줄을 append 한다.

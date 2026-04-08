@@ -256,7 +256,7 @@ static void rejects_query_without_semicolon(void) {
     assertStrEq(result.error_message, "expected ;");
 }
 
-/* 메타데이터 로더는 users와 posts를 파일에서 읽어야 한다. */
+/* 메타데이터 로더는 파일에 있는 테이블들을 읽어야 한다. */
 static void loads_metadata_from_csv_file(void) {
     char root_template[] = "/tmp/jungle-week6-sijun-unit-XXXXXX";
     char db_directory[PATH_MAX];
@@ -281,8 +281,8 @@ static void loads_metadata_from_csv_file(void) {
     remove_test_db(root_template);
 }
 
-/* 필수 테이블만 있으면 컬럼 구성이 달라도 메타데이터 로딩은 성공해야 한다. */
-static void loads_metadata_without_strict_schema_validation(void) {
+/* 하드코딩된 테이블명이 아니어도 메타데이터 로딩은 성공해야 한다. */
+static void loads_metadata_without_hardcoded_table_requirement(void) {
     char root_template[] = "/tmp/jungle-week6-sijun-unit-XXXXXX";
     char db_directory[PATH_MAX];
     char metadata_path[PATH_MAX];
@@ -293,10 +293,10 @@ static void loads_metadata_without_strict_schema_validation(void) {
     build_metadata_path(metadata_path, sizeof(metadata_path), db_directory);
     write_text_file(
         metadata_path,
-        "users,uid,NUMBER\n"
-        "users,display_name,TEXT\n"
-        "posts,pid,NUMBER\n"
-        "posts,body,TEXT\n"
+        "members,uid,NUMBER\n"
+        "members,display_name,TEXT\n"
+        "articles,id,NUMBER\n"
+        "articles,body,TEXT\n"
     );
 
     /* when */
@@ -305,15 +305,15 @@ static void loads_metadata_without_strict_schema_validation(void) {
     /* then */
     assertNull(load_result.error_message);
     assertEq((long long) load_result.metadata.table_count, 2);
-    assertStrEq(load_result.metadata.tables[0].name, "users");
-    assertStrEq(load_result.metadata.tables[1].name, "posts");
+    assertStrEq(load_result.metadata.tables[0].name, "members");
+    assertStrEq(load_result.metadata.tables[1].name, "articles");
 
     free_metadata(&load_result.metadata);
     remove_test_db(root_template);
 }
 
-/* 필수 테이블을 메타데이터에서 못 찾으면 로딩이 실패해야 한다. */
-static void rejects_metadata_when_required_table_is_missing(void) {
+/* 메타데이터에 테이블이 하나도 없으면 로딩이 실패해야 한다. */
+static void rejects_metadata_when_no_table_exists(void) {
     char root_template[] = "/tmp/jungle-week6-sijun-unit-XXXXXX";
     char db_directory[PATH_MAX];
     char metadata_path[PATH_MAX];
@@ -322,17 +322,13 @@ static void rejects_metadata_when_required_table_is_missing(void) {
     /* given */
     create_test_db(root_template, db_directory, sizeof(db_directory));
     build_metadata_path(metadata_path, sizeof(metadata_path), db_directory);
-    write_text_file(
-        metadata_path,
-        "users,id,NUMBER\n"
-        "users,name,TEXT\n"
-    );
+    write_text_file(metadata_path, "");
 
     /* when */
     load_result = load_metadata_from_directory(db_directory);
 
     /* then */
-    assertStrEq(load_result.error_message, "missing required table in metadata");
+    assertStrEq(load_result.error_message, "no table in metadata");
     assertEq((long long) load_result.metadata.table_count, 0);
 
     remove_test_db(root_template);
@@ -649,8 +645,8 @@ int main(void) {
     rejects_bare_identifier_value_in_insert();
     rejects_query_without_semicolon();
     loads_metadata_from_csv_file();
-    loads_metadata_without_strict_schema_validation();
-    rejects_metadata_when_required_table_is_missing();
+    loads_metadata_without_hardcoded_table_requirement();
+    rejects_metadata_when_no_table_exists();
     finds_table_metadata_by_name();
     rejects_insert_when_value_count_differs();
     executes_insert_query_to_csv();
