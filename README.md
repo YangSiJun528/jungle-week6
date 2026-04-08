@@ -2,18 +2,25 @@
   <img src="docs/files/readme_qr.png" alt="README QR Code" width="220">
 </p>
 
-# 수요코딩회 발표 보고서
+# 6주차 수요코딩회: SQL 처리기
 
-## 1. 시연 + 구현 소개
+## 1. 소개, 시연
 
+### 실행 흐름
 
-> 작성 예정
->
-> 실제 발표 직전에 데모 순서와 구현 설명 흐름에 맞춰 보완 예정
+![실행 흐름](./docs/files/arch.png)
+
+### 의사코드 
+```python
+def repl():
+    while True:
+        sql_text = read_input()
+        statement = parse(sql_text)
+        result = execute(statement)
+        render_result(result)
+```
 
 ## 2. 협업 방식
-
-AI를 잘 활용하기 위한걸 목적으로 함.
 
 ## 3. 기존의 문제점 인식
 
