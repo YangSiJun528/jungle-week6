@@ -1,4 +1,5 @@
-#include "main.h"
+#include "cli.h"
+#include "execute.h"
 
 #include <stdio.h>
 #include <stdlib.h>
