@@ -19,6 +19,7 @@ int main(int argc, char *argv[]) {
     const char *result = process_args(argc, argv);
 
     if (result == NULL) {
+        fprintf(stderr, "Usage: %s <string>\n", argv[0]);
         return ERR;
     }
 
