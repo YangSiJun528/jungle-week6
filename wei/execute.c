@@ -2,6 +2,8 @@
 #define CSV_DIR "."
 #endif
 
+#include <unistd.h>
+
 /* execute 단계는 parse가 만든 Statement를 실제 파일 입출력으로 연결한다. */
 typedef enum {
     EXECUTE_OK,
@@ -32,6 +34,23 @@ static char *copy_text(const char *text) {
 
     memcpy(copy, text, length + 1);
     return copy;
+}
+
+/* 공백만 정리할 때 쓰는 공통 helper다. CSV 셀은 따옴표를 벗기지 않기 때문에 trim_token과 분리한다. */
+static char *trim_spaces(char *text) {
+    char *end;
+
+    while (*text == ' ' || *text == '\t') {
+        text++;
+    }
+
+    end = text + strlen(text);
+    while (end > text && (end[-1] == ' ' || end[-1] == '\t')) {
+        end--;
+    }
+    *end = '\0';
+
+    return text;
 }
 
 /* 테이블 이름을 "{dir}/{table}.csv" 경로로 바꾼다. */
@@ -92,15 +111,8 @@ static char *read_file(const char *path) {
 static char *trim_token(char *token) {
     char *end;
 
-    while (*token == ' ' || *token == '\t') {
-        token++;
-    }
-
+    token = trim_spaces(token);
     end = token + strlen(token);
-    while (end > token && (end[-1] == ' ' || end[-1] == '\t')) {
-        end--;
-    }
-    *end = '\0';
 
     if (strlen(token) >= 2 && token[0] == '\'' && end[-1] == '\'') {
         token++;
@@ -110,15 +122,20 @@ static char *trim_token(char *token) {
     return token;
 }
 
-/* "a, b, 'c'" 같은 values 문자열을 쉼표 기준 토큰 배열로 나눈다. */
+/* "a, b, 'Seoul, Korea'" 같은 values 문자열을 나눈다.
+ * 작은따옴표 안의 쉼표는 값 내부 문자로 보고, 바깥쪽 쉼표만 구분자로 사용한다.
+ */
 static size_t split_values(char *values, char ***tokens_out) {
     size_t count = 1;
     size_t index = 0;
     char **tokens;
     char *cursor = values;
+    bool in_quotes = false;
 
     while (*cursor != '\0') {
-        if (*cursor == ',') {
+        if (*cursor == '\'') {
+            in_quotes = !in_quotes;
+        } else if (*cursor == ',' && !in_quotes) {
             count++;
         }
         cursor++;
@@ -133,7 +150,13 @@ static size_t split_values(char *values, char ***tokens_out) {
     cursor = values;
     tokens[index++] = cursor;
     while (*cursor != '\0') {
-        if (*cursor == ',') {
+        if (*cursor == '\'') {
+            in_quotes = !in_quotes;
+            cursor++;
+            continue;
+        }
+
+        if (*cursor == ',' && !in_quotes) {
             *cursor = '\0';
             cursor++;
             tokens[index++] = cursor;
@@ -148,6 +171,47 @@ static size_t split_values(char *values, char ***tokens_out) {
 
     *tokens_out = tokens;
     return count;
+}
+
+/* CSV 셀 안에 쉼표나 큰따옴표가 있으면 CSV 규칙에 맞게 큰따옴표로 감싼다. */
+static char *escape_csv_cell(const char *cell) {
+    bool needs_quotes = false;
+    size_t extra = 0;
+    size_t index;
+    char *escaped;
+    char *cursor;
+
+    for (index = 0; cell[index] != '\0'; index++) {
+        if (cell[index] == ',' || cell[index] == '"' || cell[index] == '\n') {
+            needs_quotes = true;
+        }
+        if (cell[index] == '"') {
+            extra++;
+        }
+    }
+
+    escaped = malloc(index + extra + (needs_quotes ? 3 : 1));
+    if (escaped == NULL) {
+        return NULL;
+    }
+
+    cursor = escaped;
+    if (needs_quotes) {
+        *cursor++ = '"';
+    }
+
+    for (index = 0; cell[index] != '\0'; index++) {
+        if (cell[index] == '"') {
+            *cursor++ = '"';
+        }
+        *cursor++ = cell[index];
+    }
+
+    if (needs_quotes) {
+        *cursor++ = '"';
+    }
+    *cursor = '\0';
+    return escaped;
 }
 
 /* 열 개수에 맞춰 "col1,col2,..." 헤더 한 줄을 만든다. */
@@ -201,24 +265,46 @@ static char *build_row(char **tokens, size_t token_count, size_t column_count) {
     size_t length = 2;
     size_t index;
     char *row;
+    char **escaped_cells;
     size_t used = 0;
 
+    escaped_cells = calloc(column_count, sizeof(char *));
+    if (escaped_cells == NULL) {
+        return NULL;
+    }
+
     for (index = 0; index < column_count; index++) {
-        length += (index < token_count ? strlen(tokens[index]) : 0) + 1;
+        escaped_cells[index] = escape_csv_cell(index < token_count ? tokens[index] : "");
+        if (escaped_cells[index] == NULL) {
+            while (index > 0) {
+                free(escaped_cells[--index]);
+            }
+            free(escaped_cells);
+            return NULL;
+        }
+        length += strlen(escaped_cells[index]) + 1;
     }
 
     row = malloc(length);
     if (row == NULL) {
+        for (index = 0; index < column_count; index++) {
+            free(escaped_cells[index]);
+        }
+        free(escaped_cells);
         return NULL;
     }
 
     for (index = 0; index < column_count; index++) {
         used += (size_t) snprintf(row + used, length - used, "%s%s",
                                   index == 0 ? "" : ",",
-                                  index < token_count ? tokens[index] : "");
+                                  escaped_cells[index]);
     }
 
     snprintf(row + used, length - used, "\n");
+    for (index = 0; index < column_count; index++) {
+        free(escaped_cells[index]);
+    }
+    free(escaped_cells);
     return row;
 }
 
@@ -237,18 +323,26 @@ static char *append_padded_cell(char *dest, const char *cell, size_t width) {
     return dest;
 }
 
-/* CSV 한 줄도 결국 쉼표 기반이므로 SELECT 출력용 토큰 분해에 재사용한다. */
+/* CSV 한 줄을 토큰으로 나눌 때는 큰따옴표 안의 쉼표를 셀 내용으로 유지한다. */
 static size_t split_csv_line(char *line, char ***tokens_out) {
     size_t count = 1;
     size_t index = 0;
     char **tokens;
-    char *cursor = line;
+    char *read_cursor = line;
+    char *write_cursor = line;
+    bool in_quotes = false;
 
-    while (*cursor != '\0') {
-        if (*cursor == ',') {
+    while (*read_cursor != '\0') {
+        if (*read_cursor == '"') {
+            if (in_quotes && read_cursor[1] == '"') {
+                read_cursor++;
+            } else {
+                in_quotes = !in_quotes;
+            }
+        } else if (*read_cursor == ',' && !in_quotes) {
             count++;
         }
-        cursor++;
+        read_cursor++;
     }
 
     tokens = malloc(sizeof(char *) * count);
@@ -257,24 +351,97 @@ static size_t split_csv_line(char *line, char ***tokens_out) {
         return 0;
     }
 
-    cursor = line;
-    tokens[index++] = cursor;
-    while (*cursor != '\0') {
-        if (*cursor == ',') {
-            *cursor = '\0';
-            cursor++;
-            tokens[index++] = cursor;
+    read_cursor = line;
+    tokens[index++] = write_cursor;
+    while (*read_cursor != '\0') {
+        if (*read_cursor == '"') {
+            if (in_quotes && read_cursor[1] == '"') {
+                *write_cursor++ = '"';
+                read_cursor += 2;
+                continue;
+            }
+            in_quotes = !in_quotes;
+            read_cursor++;
             continue;
         }
-        cursor++;
+
+        if (*read_cursor == ',' && !in_quotes) {
+            *write_cursor++ = '\0';
+            read_cursor++;
+            tokens[index++] = write_cursor;
+            continue;
+        }
+
+        *write_cursor++ = *read_cursor++;
     }
+    *write_cursor = '\0';
 
     for (index = 0; index < count; index++) {
-        tokens[index] = trim_token(tokens[index]);
+        tokens[index] = trim_spaces(tokens[index]);
     }
 
     *tokens_out = tokens;
     return count;
+}
+
+/* 기존 CSV를 직접 "w"로 열면 쓰기 실패 시 원본을 잃을 수 있다.
+ * 그래서 임시 파일에 완성된 내용을 먼저 쓰고, 성공하면 rename으로 교체한다.
+ */
+static bool write_text_atomic(const char *path, const char *text) {
+    size_t length = strlen(path) + 16;
+    char *temp_path = malloc(length);
+    int file_descriptor;
+    FILE *file;
+    bool wrote_text = false;
+    int close_result;
+    bool success = false;
+
+    if (temp_path == NULL) {
+        return false;
+    }
+
+    snprintf(temp_path, length, "%s.tmp.XXXXXX", path);
+    file_descriptor = mkstemp(temp_path);
+    if (file_descriptor == -1) {
+        free(temp_path);
+        return false;
+    }
+
+    file = fdopen(file_descriptor, "w");
+    if (file == NULL) {
+        close(file_descriptor);
+        unlink(temp_path);
+        free(temp_path);
+        return false;
+    }
+
+    if (fputs(text, file) != EOF && fflush(file) == 0) {
+        wrote_text = true;
+    }
+
+    close_result = fclose(file);
+    if (wrote_text && close_result == 0 && rename(temp_path, path) == 0) {
+        success = true;
+    }
+
+    if (!success) {
+        unlink(temp_path);
+    }
+    free(temp_path);
+    return success;
+}
+
+/* 헤더, 기존 데이터 본문, 새 행을 합쳐서 한 번에 쓸 전체 파일 내용을 만든다. */
+static char *build_file_content(const char *header, const char *body, const char *row) {
+    size_t length = strlen(header) + strlen(body) + strlen(row) + 1;
+    char *content = malloc(length);
+
+    if (content == NULL) {
+        return NULL;
+    }
+
+    snprintf(content, length, "%s%s%s", header, body, row);
+    return content;
 }
 
 /* SELECT 결과는 CSV 원문 그대로보다 읽기 쉽게, 열 폭을 맞춘 표 문자열로 변환한다. */
@@ -434,10 +601,10 @@ static ExecutionResult execute_insert(Statement statement) {
     char **tokens = NULL;
     char *header = NULL;
     char *row = NULL;
+    char *file_content = NULL;
     char *first_newline;
     size_t token_count;
     size_t column_count;
-    FILE *file;
 
     if (path == NULL) {
         return (ExecutionResult){EXECUTE_ERROR, EXECUTE_WRITE_FAILED, copy_text("Write failed.\n")};
@@ -460,14 +627,10 @@ static ExecutionResult execute_insert(Statement statement) {
             goto cleanup;
         }
 
-        file = fopen(path, "w");
-        if (file == NULL || fputs(header, file) == EOF || fputs(row, file) == EOF) {
-            if (file != NULL) {
-                fclose(file);
-            }
+        file_content = build_file_content(header, "", row);
+        if (file_content == NULL || !write_text_atomic(path, file_content)) {
             goto cleanup;
         }
-        fclose(file);
     } else {
         /* 기존 테이블이 있으면 현재 헤더 열 수를 읽고, 더 넓은 행이 오면 헤더를 늘린다. */
         column_count = count_header_columns(existing);
@@ -482,22 +645,12 @@ static ExecutionResult execute_insert(Statement statement) {
         }
 
         first_newline = strchr(existing, '\n');
-        file = fopen(path, "w");
-        if (file == NULL || fputs(header, file) == EOF) {
-            if (file != NULL) {
-                fclose(file);
-            }
+        file_content = build_file_content(header,
+                                          (first_newline != NULL && first_newline[1] != '\0') ? first_newline + 1 : "",
+                                          row);
+        if (file_content == NULL || !write_text_atomic(path, file_content)) {
             goto cleanup;
         }
-        if (first_newline != NULL && first_newline[1] != '\0' && fputs(first_newline + 1, file) == EOF) {
-            fclose(file);
-            goto cleanup;
-        }
-        if (fputs(row, file) == EOF) {
-            fclose(file);
-            goto cleanup;
-        }
-        fclose(file);
     }
 
     result.status = EXECUTE_OK;
@@ -515,6 +668,7 @@ cleanup:
     free(tokens);
     free(header);
     free(row);
+    free(file_content);
     return result;
 }
 
