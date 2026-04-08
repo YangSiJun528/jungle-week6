@@ -2,7 +2,7 @@
   <img src="docs/files/readme_qr.png" alt="README QR Code" width="220">
 </p>
 
-# 수요코딩회 발표 보고서
+# MINI DB 3조
 
 ## 1. 시연 + 구현 소개
 
