@@ -72,11 +72,25 @@ static void trims_trailing_newline(void) {
     /* given */
 
     /* when */
-    size_t length = trim_newline(line);
+    size_t length = trim_newline(line, 6);
 
     /* then */
     assert(length == 5);
     assert(strcmp(line, "hello") == 0);
+}
+
+/* CRLF도 함께 제거해야 명령어 비교가 정확하다. */
+static void trims_trailing_crlf(void) {
+    char line[] = ".exit\r\n";
+
+    /* given */
+
+    /* when */
+    size_t length = trim_newline(line, 7);
+
+    /* then */
+    assert(length == 5);
+    assert(strcmp(line, ".exit") == 0);
 }
 
 /* 개행이 없으면 문자열은 그대로 유지해야 한다. */
@@ -86,7 +100,7 @@ static void keeps_line_without_newline(void) {
     /* given */
 
     /* when */
-    size_t length = trim_newline(line);
+    size_t length = trim_newline(line, 5);
 
     /* then */
     assert(length == 5);
@@ -236,8 +250,25 @@ static void exits_cleanly_on_eof(void) {
     assert(strcmp(error_buffer, "") == 0);
 }
 
+/* CRLF 입력의 .exit도 종료 명령으로 처리해야 한다. */
+static void exits_on_crlf_exit_command(void) {
+    char output_buffer[16];
+    char error_buffer[16];
+
+    /* given */
+
+    /* when */
+    int result = run_repl_with_text(".exit\r\n", output_buffer, sizeof(output_buffer), error_buffer, sizeof(error_buffer));
+
+    /* then */
+    assert(result == OK);
+    assert(strcmp(output_buffer, "") == 0);
+    assert(strcmp(error_buffer, "") == 0);
+}
+
 int main(void) {
     trims_trailing_newline();
+    trims_trailing_crlf();
     keeps_line_without_newline();
     skips_empty_line();
     prints_whitespace_only_line();
@@ -248,5 +279,6 @@ int main(void) {
     separates_output_and_error_streams();
     continues_after_unknown_command();
     exits_cleanly_on_eof();
+    exits_on_crlf_exit_command();
     return 0;
 }

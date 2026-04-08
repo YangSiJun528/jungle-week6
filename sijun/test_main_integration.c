@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,10 +65,27 @@ static void prints_text_until_eof(const char *program_path) {
     assert(strcmp(output, "hello\n") == 0);
 }
 
+/* CRLF 입력의 .exit도 정상 종료해야 한다. */
+static void exits_on_crlf_exit(const char *program_path) {
+    char output[64];
+    char command[1024];
+
+    /* given */
+    snprintf(command, sizeof(command), "printf 'hello\\r\\n.exit\\r\\n' | \"%s\"", program_path);
+
+    /* when */
+    int exit_code = run_command(command, output, sizeof(output));
+
+    /* then */
+    assert(exit_code == OK);
+    assert(strcmp(output, "hello\n") == 0);
+}
+
 int main(int argc, char *argv[]) {
     assert(argc == 2);
 
     prints_text_until_exit(argv[1]);
     prints_text_until_eof(argv[1]);
+    exits_on_crlf_exit(argv[1]);
     return 0;
 }

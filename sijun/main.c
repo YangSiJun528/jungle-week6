@@ -9,17 +9,21 @@
 /**
  * @brief 문자열 끝의 개행 문자를 제거한다.
  * @param line 수정할 문자열
+ * @param length getline이 반환한 문자열 길이
  * @return 개행 제거 후 문자열 길이
  */
-size_t trim_newline(char *line) {
-    size_t length = strlen(line);
+size_t trim_newline(char *line, ssize_t length) {
+    size_t trimmed_length = (size_t) length;
 
-    if (length > 0 && line[length - 1] == '\n') {
-        line[length - 1] = '\0';
-        return length - 1;
+    if (trimmed_length > 0 && line[trimmed_length - 1] == '\n') {
+        line[--trimmed_length] = '\0';
     }
 
-    return length;
+    if (trimmed_length > 0 && line[trimmed_length - 1] == '\r') {
+        line[--trimmed_length] = '\0';
+    }
+
+    return trimmed_length;
 }
 
 /**
@@ -67,11 +71,12 @@ int run_repl(FILE *input_stream, FILE *output_stream, FILE *error_stream) {
     char *line = NULL;
     size_t capacity = 0;
     char error_buffer[1024];
+    ssize_t line_length;
 
-    while (getline(&line, &capacity, input_stream) != -1) {
+    while ((line_length = getline(&line, &capacity, input_stream)) != -1) {
         LineAction action;
 
-        trim_newline(line);
+        trim_newline(line, line_length);
         action = evaluate_line(line, error_buffer, sizeof(error_buffer));
 
         if (action.type == LINE_ACTION_SKIP) {
