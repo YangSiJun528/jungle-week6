@@ -347,9 +347,35 @@ static void rejects_table_name_starting_with_digit(void) {
     assertEq((long long) result.error_position, 14);
 }
 
+/* 식별자는 ASCII 영문자로 시작해야 한다. */
+static void rejects_non_ascii_table_name(void) {
+    ParseResult result = parse("select * from \xE9users");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertEq(result.type, QUERY_TYPE_INVALID);
+    assertStrEq(result.error_message, "expected identifier");
+}
+
 /* 문자열에는 정의된 문자만 허용해야 한다. */
 static void rejects_invalid_string_character(void) {
     ParseResult result = parse("insert into users values ('a@a.com')");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertEq(result.type, QUERY_TYPE_INVALID);
+    assertStrEq(result.error_message, "invalid string character");
+}
+
+/* 문자열도 EBNF의 ASCII 문자 집합만 허용해야 한다. */
+static void rejects_non_ascii_string_character(void) {
+    ParseResult result = parse("insert into users values ('\xE9')");
 
     /* given */
 
@@ -405,7 +431,9 @@ int main(void) {
     parses_insert_query_values();
     parses_insert_query_with_flexible_whitespace();
     rejects_table_name_starting_with_digit();
+    rejects_non_ascii_table_name();
     rejects_invalid_string_character();
+    rejects_non_ascii_string_character();
     rejects_empty_value_list();
     rejects_trailing_input();
     return 0;

@@ -190,7 +190,54 @@ SQLite에 대한 분석이 들어가는데,
 
 ### 구현 계획 세우기
 
+### 현재 parser가 구현한 EBNF
 
+지금 구현은 아래 EBNF를 기준으로 동작한다.
+
+```ebnf
+query       = ws, (select_query | insert_query), ws ;
+
+select_query = "select", req_ws, "*", req_ws, "from", req_ws, table_name ;
+
+insert_query = "insert", req_ws, "into", req_ws, table_name,
+               req_ws, "values", ws, "(", ws, value_list, ws, ")" ;
+
+value_list  = value, { ws, ",", ws, value } ;
+
+table_name  = identifier ;
+
+value       = number | string | identifier ;
+
+identifier  = letter, { letter | digit | "_" } ;
+
+number      = digit, { digit } ;
+
+string      = "'", { string_char }, "'" ;
+
+string_char = letter | digit | "_" | " " ;
+
+req_ws      = whitespace, { whitespace } ;
+ws          = { whitespace } ;
+
+whitespace  = " " | "\t" | "\n" ;
+
+letter      = "a" | "b" | "c" | "d" | "e" | "f" | "g"
+            | "h" | "i" | "j" | "k" | "l" | "m" | "n"
+            | "o" | "p" | "q" | "r" | "s" | "t" | "u"
+            | "v" | "w" | "x" | "y" | "z"
+            | "A" | "B" | "C" | "D" | "E" | "F" | "G"
+            | "H" | "I" | "J" | "K" | "L" | "M" | "N"
+            | "O" | "P" | "Q" | "R" | "S" | "T" | "U"
+            | "V" | "W" | "X" | "Y" | "Z" ;
+
+digit       = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+```
+
+구현 메모:
+
+- 키워드는 현재 구현상 소문자 리터럴만 허용한다. 예: `select`, `insert`
+- `insert ... values ()` 같은 빈 value list는 허용하지 않는다.
+- 문장 끝의 `;` 는 현재 허용하지 않는다.
 
 ---
 
