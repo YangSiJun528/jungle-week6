@@ -5,11 +5,24 @@ set(CMAKE_C_STANDARD 99)
 
 enable_testing()
 
+add_library(
+    sijun_core
+    parser.c
+    parser_level2.c
+    parser_level3.c
+    parser_level4.c
+    metadata.c
+    repl.c
+)
+target_include_directories(sijun_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_executable(sijun main.c)
+target_link_libraries(sijun PRIVATE sijun_core)
 target_include_directories(sijun PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(test_main_unit main.c test_main_unit.c)
+add_executable(test_main_unit test_main_unit.c)
 target_compile_definitions(test_main_unit PRIVATE SIJUN_TEST_BUILD=1)
+target_link_libraries(test_main_unit PRIVATE sijun_core)
 target_include_directories(test_main_unit PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(test_main_integration test_main_integration.c)

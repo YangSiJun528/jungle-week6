@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include "main.h"
 #include "test_util.h"
-#include "utils.h"
 
 /**
  * @brief 외부 프로그램을 실행하고 출력을 수집한다.

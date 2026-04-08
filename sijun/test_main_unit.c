@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "main.h"
+#include "repl_internal.h"
 #include "test_util.h"
-#include "utils.h"
 
 /**
  * @brief 스트림 전체를 읽어 문자열 버퍼에 담는다.

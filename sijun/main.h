@@ -4,25 +4,14 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <sys/types.h>
 
 /**
- * @brief 입력 한 줄을 처리한 결과 종류를 나타낸다.
+ * @brief 프로그램 종료 코드를 나타낸다.
  */
 typedef enum {
-    LINE_ACTION_SKIP,
-    LINE_ACTION_PRINT,
-    LINE_ACTION_ERROR,
-    LINE_ACTION_EXIT
-} LineActionType;
-
-/**
- * @brief 한 줄 처리 결과 데이터를 담는다.
- */
-typedef struct {
-    LineActionType type;
-    const char *message;
-} LineAction;
+    OK = 0,
+    ERR = 1
+} ProgramExitCode;
 
 /**
  * @brief SQL 쿼리 종류를 나타낸다.
@@ -113,14 +102,6 @@ typedef struct {
 } SemanticCheckResult;
 
 /**
- * @brief 문자열 끝의 개행 문자를 제거한다.
- * @param line 수정할 문자열
- * @param length getline이 반환한 문자열 길이
- * @return 개행 제거 후 문자열 길이
- */
-size_t trim_newline(char *line, ssize_t length);
-
-/**
  * @brief 경량 SQL 문자열을 EBNF 규칙에 따라 파싱한다.
  * @param input 파싱할 SQL 문자열
  * @return 파싱 결과
@@ -160,13 +141,6 @@ const TableMetadata *find_table_metadata(const DatabaseMetadata *metadata, const
  * @return 의미 검증 결과
  */
 SemanticCheckResult validate_query_against_metadata(const DatabaseMetadata *metadata, const ParseResult *result);
-
-/**
- * @brief 입력 한 줄을 해석해 다음 동작을 결정한다.
- * @param line 개행이 제거된 입력 문자열
- * @return 입력 처리 결과
- */
-LineAction evaluate_line(char *line);
 
 /**
  * @brief 입력 스트림을 읽어 출력 스트림으로 결과를 기록한다.
