@@ -260,6 +260,22 @@ static void exits_on_crlf_exit_command(void) {
     assertStrEq(error_buffer, "");
 }
 
+/* 파싱 에러가 나면 stdout 없이 에러를 출력하고 다음 입력을 계속 받아야 한다. */
+static void reports_parse_error_and_continues(void) {
+    char output_buffer[64];
+    char error_buffer[128];
+
+    /* given */
+
+    /* when */
+    int result = run_repl_with_text("select * from 123users\nhello\n.exit\n", output_buffer, sizeof(output_buffer), error_buffer, sizeof(error_buffer));
+
+    /* then */
+    assertEq(result, OK);
+    assertStrEq(output_buffer, "hello\n");
+    assertStrEq(error_buffer, "Parse error: expected identifier at position 14\n");
+}
+
 /* select 문은 테이블명을 파싱해야 한다. */
 static void parses_select_query(void) {
     ParseResult result = parse("select * from users");
@@ -583,6 +599,7 @@ int main(void) {
     continues_after_unknown_command();
     exits_cleanly_on_eof();
     exits_on_crlf_exit_command();
+    reports_parse_error_and_continues();
     parses_select_query();
     parses_select_query_with_surrounding_whitespace();
     parses_insert_query_values();

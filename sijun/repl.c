@@ -2,9 +2,12 @@
 
 #include "main.h"
 #include "repl_internal.h"
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static bool starts_with_query_keyword(const char *line);
 
 /**
  * @brief 입력 스트림을 읽어 출력 스트림으로 결과를 기록한다.
@@ -41,10 +44,27 @@ int run_repl(FILE *input_stream, FILE *output_stream, FILE *error_stream) {
             continue;
         }
 
+        if (!starts_with_query_keyword(line)) {
+            fprintf(output_stream, "%s\n", action.message);
+            continue;
+        }
+
         {
             ParseResult parse_result = parse(line);
 
-            if (parse_result.error_message == NULL) {
+            if (parse_result.error_message != NULL) {
+                fprintf(
+                    error_stream,
+                    "Parse error: %s at position %zu\n",
+                    parse_result.error_message,
+                    parse_result.error_position
+                );
+                free_parse_result(&parse_result);
+                continue;
+            }
+
+            {
+                /* TODO: 메타데이터 기반 검증은 실행 단계 책임으로 옮기고, REPL은 파싱까지만 담당하게 정리한다. */
                 SemanticCheckResult check = validate_query_against_metadata(&metadata_result.metadata, &parse_result);
 
                 if (!check.ok) {
@@ -63,6 +83,19 @@ int run_repl(FILE *input_stream, FILE *output_stream, FILE *error_stream) {
     free_metadata(&metadata_result.metadata);
     free(line);
     return OK;
+}
+
+/**
+ * @brief SQL 키워드로 시작하는 입력인지 검사한다.
+ * @param line 검사할 입력 문자열
+ * @return SQL 키워드로 시작하면 1, 아니면 0
+ */
+static bool starts_with_query_keyword(const char *line) {
+    while (*line == ' ' || *line == '\t' || *line == '\n') {
+        line++;
+    }
+
+    return strncmp(line, "select", 6) == 0 || strncmp(line, "insert", 6) == 0;
 }
 
 /**

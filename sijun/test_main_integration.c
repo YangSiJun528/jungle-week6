@@ -113,6 +113,22 @@ static void reports_semantic_error_for_unknown_table(const char *program_path) {
     assertStrEq(output, "Semantic error: unknown table\n");
 }
 
+/* 잘못된 SQL은 parse error를 출력하고 이후 입력은 계속 처리해야 한다. */
+static void reports_parse_error_and_keeps_processing(const char *program_path) {
+    char output[256];
+    char command[1024];
+
+    /* given */
+    snprintf(command, sizeof(command), "printf 'select * from 123users\\nhello\\n.exit\\n' | \"%s\" 2>&1", program_path);
+
+    /* when */
+    int exit_code = run_command(command, output, sizeof(output));
+
+    /* then */
+    assertEq(exit_code, OK);
+    assertStrEq(output, "Parse error: expected identifier at position 14\nhello\n");
+}
+
 int main(int argc, char *argv[]) {
     assertEq(argc, 2);
 
@@ -121,5 +137,6 @@ int main(int argc, char *argv[]) {
     exits_on_crlf_exit(argv[1]);
     prints_sql_when_metadata_validation_succeeds(argv[1]);
     reports_semantic_error_for_unknown_table(argv[1]);
+    reports_parse_error_and_keeps_processing(argv[1]);
     return 0;
 }
