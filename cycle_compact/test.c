@@ -1,4 +1,5 @@
-#include "db.h"
+#define TESTING
+#include "main.c"
 
 #include <assert.h>
 #include <stdio.h>
