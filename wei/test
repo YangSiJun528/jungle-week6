@@ -6,25 +6,85 @@
 #include <string.h>
 #include <sys/wait.h>
 
+#define main wei_program_main
+#include "/Users/wiseungcheol/Desktop/WEI/wei/main.c"
+#undef main
+
 int main(void) {
-    int compile_status = system("cc -Wall -Wextra -Werror -std=c11 -pedantic -o /tmp/wei_main /Users/wiseungcheol/Desktop/WEI/wei/main.c");
+    Statement statement;
+    char select_input[] = "SELECT * from users;";
+    char insert_input[] = "INSERT into users values ('duck', 2);";
+    char bad_select_case[] = "select * from users";
+    char bad_select_form[] = "SELECT users";
+    char bad_select_missing_semicolon[] = "SELECT * from users";
+    char bad_select_not_star[] = "SELECT id from users;";
+    char bad_insert_case[] = "INSERT INTO users VALUES ('duck', 2)";
+    char bad_insert_form[] = "INSERT into users ('duck', 2)";
+    char bad_insert_missing_semicolon[] = "INSERT into users values ('duck', 2)";
+    int compile_status;
+    FILE *output;
+    char buffer[256] = {0};
+    size_t used = 0;
+
+    statement = parse(select_input);
+    assert(statement.status == PARSE_OK);
+    assert(statement.type == STATEMENT_SELECT);
+    assert(strcmp(statement.table_name, "users") == 0);
+    assert(statement.values == NULL);
+
+    statement = parse(insert_input);
+    assert(statement.status == PARSE_OK);
+    assert(statement.type == STATEMENT_INSERT);
+    assert(strcmp(statement.table_name, "users") == 0);
+    assert(strcmp(statement.values, "'duck', 2") == 0);
+
+    statement = parse(bad_select_case);
+    assert(statement.status == PARSE_ERROR);
+
+    statement = parse(bad_select_form);
+    assert(statement.status == PARSE_ERROR);
+
+    statement = parse(bad_select_missing_semicolon);
+    assert(statement.status == PARSE_ERROR);
+
+    statement = parse(bad_select_not_star);
+    assert(statement.status == PARSE_ERROR);
+
+    statement = parse(bad_insert_case);
+    assert(statement.status == PARSE_ERROR);
+
+    statement = parse(bad_insert_form);
+    assert(statement.status == PARSE_ERROR);
+
+    statement = parse(bad_insert_missing_semicolon);
+    assert(statement.status == PARSE_ERROR);
+
+    compile_status = system("cc -Wall -Wextra -Werror -std=c11 -pedantic -o /tmp/wei_main /Users/wiseungcheol/Desktop/WEI/wei/main.c");
     assert(compile_status != -1);
     assert(WIFEXITED(compile_status));
     assert(WEXITSTATUS(compile_status) == 0);
 
-    FILE *output = popen("printf 'hello\\n.exit\\n' | /tmp/wei_main", "r");
-    char buffer[256];
-    size_t used = 0;
-
+    output = popen("printf 'SELECT * from users;\\n.exit\\n' | /tmp/wei_main", "r");
     assert(output != NULL);
-
     while (fgets(buffer + used, (int) (sizeof(buffer) - used), output) != NULL) {
         used = strlen(buffer);
         if (used == sizeof(buffer) - 1) {
             break;
         }
     }
+    assert(pclose(output) == 0);
+    assert(strcmp(buffer, "db > db > ") == 0);
 
+    memset(buffer, 0, sizeof(buffer));
+    used = 0;
+    output = popen("printf 'wrong\\n.exit\\n' | /tmp/wei_main", "r");
+    assert(output != NULL);
+    while (fgets(buffer + used, (int) (sizeof(buffer) - used), output) != NULL) {
+        used = strlen(buffer);
+        if (used == sizeof(buffer) - 1) {
+            break;
+        }
+    }
     assert(pclose(output) == 0);
     assert(strcmp(buffer, "db > Unrecognized command\ndb > ") == 0);
 
