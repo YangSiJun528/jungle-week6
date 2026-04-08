@@ -250,7 +250,6 @@ insert into users ('kim');
 insert into users values ();
 insert into users values ('kim',);
 insert into users values ('kim' 1);
-insert into users values ('kim');
 ```
 
 ## 값 파싱 규칙
