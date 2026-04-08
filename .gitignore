@@ -1,20 +1,3 @@
 logs/
-
-# macOS
-.DS_Store
-
-# Editor settings
-.idea/
-.vscode/
-
-# C build artifacts
-*.o
-*.out
-*.a
-*.so
-*.dylib
-*.exe
-*.dSYM/
-
-# Local compiled binaries
-haegeon/main
+cycle_compact/mini_db*
+cycle_compact/test_db
