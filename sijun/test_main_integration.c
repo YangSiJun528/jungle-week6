@@ -1,11 +1,11 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
-#include "utils.h"
+#include "main.h"
+#include "test_util.h"
 
 /**
  * @brief 외부 프로그램을 실행하고 출력을 수집한다.
@@ -20,7 +20,7 @@ static int run_command(const char *command, char *output, size_t output_size) {
     int ch;
     int status;
 
-    assert(pipe != NULL);
+    assertTrue(pipe != NULL);
 
     while ((ch = fgetc(pipe)) != EOF && length + 1 < output_size) {
         output[length++] = (char) ch;
@@ -28,8 +28,8 @@ static int run_command(const char *command, char *output, size_t output_size) {
     output[length] = '\0';
 
     status = pclose(pipe);
-    assert(status != -1);
-    assert(WIFEXITED(status));
+    assertTrue(status != -1);
+    assertTrue(WIFEXITED(status));
     return WEXITSTATUS(status);
 }
 
@@ -45,8 +45,8 @@ static void prints_text_until_exit(const char *program_path) {
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
-    assert(exit_code == OK);
-    assert(strcmp(output, "hello\n") == 0);
+    assertEq(exit_code, OK);
+    assertStrEq(output, "hello\n");
 }
 
 /* .exit 없이 EOF가 와도 마지막 입력을 출력하고 종료해야 한다. */
@@ -61,8 +61,8 @@ static void prints_text_until_eof(const char *program_path) {
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
-    assert(exit_code == OK);
-    assert(strcmp(output, "hello\n") == 0);
+    assertEq(exit_code, OK);
+    assertStrEq(output, "hello\n");
 }
 
 /* CRLF 입력의 .exit도 정상 종료해야 한다. */
@@ -77,15 +77,49 @@ static void exits_on_crlf_exit(const char *program_path) {
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
-    assert(exit_code == OK);
-    assert(strcmp(output, "hello\n") == 0);
+    assertEq(exit_code, OK);
+    assertStrEq(output, "hello\n");
+}
+
+/* 존재하는 SQL은 메타데이터 검증을 통과하고 그대로 출력해야 한다. */
+static void prints_sql_when_metadata_validation_succeeds(const char *program_path) {
+    char output[128];
+    char command[1024];
+
+    /* given */
+    snprintf(command, sizeof(command), "printf 'select * from users\\n.exit\\n' | \"%s\"", program_path);
+
+    /* when */
+    int exit_code = run_command(command, output, sizeof(output));
+
+    /* then */
+    assertEq(exit_code, OK);
+    assertStrEq(output, "select * from users\n");
+}
+
+/* 없는 테이블을 조회하면 stdout 없이 semantic error만 나야 한다. */
+static void reports_semantic_error_for_unknown_table(const char *program_path) {
+    char output[128];
+    char command[1024];
+
+    /* given */
+    snprintf(command, sizeof(command), "printf 'select * from members\\n.exit\\n' | \"%s\" 2>&1", program_path);
+
+    /* when */
+    int exit_code = run_command(command, output, sizeof(output));
+
+    /* then */
+    assertEq(exit_code, OK);
+    assertStrEq(output, "Semantic error: unknown table\n");
 }
 
 int main(int argc, char *argv[]) {
-    assert(argc == 2);
+    assertEq(argc, 2);
 
     prints_text_until_exit(argv[1]);
     prints_text_until_eof(argv[1]);
     exits_on_crlf_exit(argv[1]);
+    prints_sql_when_metadata_validation_succeeds(argv[1]);
+    reports_semantic_error_for_unknown_table(argv[1]);
     return 0;
 }

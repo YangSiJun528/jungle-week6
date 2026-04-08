@@ -1,11 +1,11 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "main.h"
-#include "utils.h"
+#include "repl_internal.h"
+#include "test_util.h"
 
 /**
  * @brief 스트림 전체를 읽어 문자열 버퍼에 담는다.
@@ -47,9 +47,9 @@ static int run_repl_with_text(
     FILE *error_stream = tmpfile();
     int result;
 
-    assert(input_stream != NULL);
-    assert(output_stream != NULL);
-    assert(error_stream != NULL);
+    assertTrue(input_stream != NULL);
+    assertTrue(output_stream != NULL);
+    assertTrue(error_stream != NULL);
 
     fputs(input_text, input_stream);
     rewind(input_stream);
@@ -75,8 +75,8 @@ static void trims_trailing_newline(void) {
     size_t length = trim_newline(line, 6);
 
     /* then */
-    assert(length == 5);
-    assert(strcmp(line, "hello") == 0);
+    assertEq((long long) length, 5);
+    assertStrEq(line, "hello");
 }
 
 /* CRLF도 함께 제거해야 명령어 비교가 정확하다. */
@@ -89,8 +89,8 @@ static void trims_trailing_crlf(void) {
     size_t length = trim_newline(line, 7);
 
     /* then */
-    assert(length == 5);
-    assert(strcmp(line, ".exit") == 0);
+    assertEq((long long) length, 5);
+    assertStrEq(line, ".exit");
 }
 
 /* 개행이 없으면 문자열은 그대로 유지해야 한다. */
@@ -103,8 +103,8 @@ static void keeps_line_without_newline(void) {
     size_t length = trim_newline(line, 5);
 
     /* then */
-    assert(length == 5);
-    assert(strcmp(line, "hello") == 0);
+    assertEq((long long) length, 5);
+    assertStrEq(line, "hello");
 }
 
 /* 빈 줄은 건너뛰어야 한다. */
@@ -117,8 +117,8 @@ static void skips_empty_line(void) {
     LineAction action = evaluate_line(line);
 
     /* then */
-    assert(action.type == LINE_ACTION_SKIP);
-    assert(action.message == NULL);
+    assertEq(action.type, LINE_ACTION_SKIP);
+    assertNull(action.message);
 }
 
 /* 공백만 있는 줄은 그대로 출력해야 한다. */
@@ -131,8 +131,8 @@ static void prints_whitespace_only_line(void) {
     LineAction action = evaluate_line(line);
 
     /* then */
-    assert(action.type == LINE_ACTION_PRINT);
-    assert(strcmp(action.message, "   ") == 0);
+    assertEq(action.type, LINE_ACTION_PRINT);
+    assertStrEq(action.message, "   ");
 }
 
 /* 일반 텍스트는 그대로 출력해야 한다. */
@@ -145,8 +145,8 @@ static void prints_plain_text(void) {
     LineAction action = evaluate_line(line);
 
     /* then */
-    assert(action.type == LINE_ACTION_PRINT);
-    assert(strcmp(action.message, "hello") == 0);
+    assertEq(action.type, LINE_ACTION_PRINT);
+    assertStrEq(action.message, "hello");
 }
 
 /* .exit는 종료 동작이어야 한다. */
@@ -159,8 +159,8 @@ static void exits_on_exit_command(void) {
     LineAction action = evaluate_line(line);
 
     /* then */
-    assert(action.type == LINE_ACTION_EXIT);
-    assert(action.message == NULL);
+    assertEq(action.type, LINE_ACTION_EXIT);
+    assertNull(action.message);
 }
 
 /* 알 수 없는 점 명령은 에러 메시지를 만들어야 한다. */
@@ -173,8 +173,8 @@ static void reports_unknown_command(void) {
     LineAction action = evaluate_line(line);
 
     /* then */
-    assert(action.type == LINE_ACTION_ERROR);
-    assert(strcmp(action.message, ".unknown") == 0);
+    assertEq(action.type, LINE_ACTION_ERROR);
+    assertStrEq(action.message, ".unknown");
 }
 
 /* 긴 문자열도 잘리지 않고 그대로 반환해야 한다. */
@@ -192,8 +192,8 @@ static void preserves_long_line(void) {
     LineAction action = evaluate_line(line);
 
     /* then */
-    assert(action.type == LINE_ACTION_PRINT);
-    assert(strcmp(action.message, line) == 0);
+    assertEq(action.type, LINE_ACTION_PRINT);
+    assertStrEq(action.message, line);
 }
 
 /* stdout과 stderr는 분리되어 기록되어야 한다. */
@@ -207,9 +207,9 @@ static void separates_output_and_error_streams(void) {
     int result = run_repl_with_text(".unknown\nhello\n.exit\n", output_buffer, sizeof(output_buffer), error_buffer, sizeof(error_buffer));
 
     /* then */
-    assert(result == OK);
-    assert(strcmp(output_buffer, "hello\n") == 0);
-    assert(strcmp(error_buffer, "Unknown command: .unknown\n") == 0);
+    assertEq(result, OK);
+    assertStrEq(output_buffer, "hello\n");
+    assertStrEq(error_buffer, "Unknown command: .unknown\n");
 }
 
 /* 알 수 없는 명령 뒤에도 다음 입력을 계속 처리해야 한다. */
@@ -223,9 +223,9 @@ static void continues_after_unknown_command(void) {
     int result = run_repl_with_text(".unknown\nhello\nworld\n.exit\n", output_buffer, sizeof(output_buffer), error_buffer, sizeof(error_buffer));
 
     /* then */
-    assert(result == OK);
-    assert(strcmp(output_buffer, "hello\nworld\n") == 0);
-    assert(strcmp(error_buffer, "Unknown command: .unknown\n") == 0);
+    assertEq(result, OK);
+    assertStrEq(output_buffer, "hello\nworld\n");
+    assertStrEq(error_buffer, "Unknown command: .unknown\n");
 }
 
 /* .exit 없이 EOF가 와도 정상 종료해야 한다. */
@@ -239,9 +239,9 @@ static void exits_cleanly_on_eof(void) {
     int result = run_repl_with_text("hello\n", output_buffer, sizeof(output_buffer), error_buffer, sizeof(error_buffer));
 
     /* then */
-    assert(result == OK);
-    assert(strcmp(output_buffer, "hello\n") == 0);
-    assert(strcmp(error_buffer, "") == 0);
+    assertEq(result, OK);
+    assertStrEq(output_buffer, "hello\n");
+    assertStrEq(error_buffer, "");
 }
 
 /* CRLF 입력의 .exit도 종료 명령으로 처리해야 한다. */
@@ -255,9 +255,318 @@ static void exits_on_crlf_exit_command(void) {
     int result = run_repl_with_text(".exit\r\n", output_buffer, sizeof(output_buffer), error_buffer, sizeof(error_buffer));
 
     /* then */
-    assert(result == OK);
-    assert(strcmp(output_buffer, "") == 0);
-    assert(strcmp(error_buffer, "") == 0);
+    assertEq(result, OK);
+    assertStrEq(output_buffer, "");
+    assertStrEq(error_buffer, "");
+}
+
+/* select 문은 테이블명을 파싱해야 한다. */
+static void parses_select_query(void) {
+    ParseResult result = parse("select * from users");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertNull(result.error_message);
+    assertEq(result.type, QUERY_TYPE_SELECT);
+    assertStrEq(result.table_name, "users");
+    assertEq((long long) result.value_count, 0);
+
+    free_parse_result(&result);
+}
+
+/* 앞뒤 공백이 있어도 select 문은 파싱해야 한다. */
+static void parses_select_query_with_surrounding_whitespace(void) {
+    ParseResult result = parse(" \n\tselect * from members \t");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertNull(result.error_message);
+    assertEq(result.type, QUERY_TYPE_SELECT);
+    assertStrEq(result.table_name, "members");
+
+    free_parse_result(&result);
+}
+
+/* insert 문은 숫자 문자열 식별자를 모두 파싱해야 한다. */
+static void parses_insert_query_values(void) {
+    ParseResult result = parse("insert into users values (1, 'kim min', admin_1)");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertNull(result.error_message);
+    assertEq(result.type, QUERY_TYPE_INSERT);
+    assertStrEq(result.table_name, "users");
+    assertEq((long long) result.value_count, 3);
+    assertEq(result.values[0].type, VALUE_TYPE_NUMBER);
+    assertStrEq(result.values[0].text, "1");
+    assertEq(result.values[1].type, VALUE_TYPE_STRING);
+    assertStrEq(result.values[1].text, "kim min");
+    assertEq(result.values[2].type, VALUE_TYPE_IDENTIFIER);
+    assertStrEq(result.values[2].text, "admin_1");
+
+    free_parse_result(&result);
+}
+
+/* insert 문은 괄호 주변 공백을 허용해야 한다. */
+static void parses_insert_query_with_flexible_whitespace(void) {
+    ParseResult result = parse("insert into logs values\t( foo ,42,'bar' )");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertNull(result.error_message);
+    assertEq(result.type, QUERY_TYPE_INSERT);
+    assertStrEq(result.table_name, "logs");
+    assertEq((long long) result.value_count, 3);
+
+    free_parse_result(&result);
+}
+
+/* 식별자는 문자로 시작해야 한다. */
+static void rejects_table_name_starting_with_digit(void) {
+    ParseResult result = parse("select * from 123users");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertEq(result.type, QUERY_TYPE_INVALID);
+    assertStrEq(result.error_message, "expected identifier");
+    assertEq((long long) result.error_position, 14);
+}
+
+/* 식별자는 ASCII 영문자로 시작해야 한다. */
+static void rejects_non_ascii_table_name(void) {
+    ParseResult result = parse("select * from \xE9users");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertEq(result.type, QUERY_TYPE_INVALID);
+    assertStrEq(result.error_message, "expected identifier");
+}
+
+/* 문자열에는 정의된 문자만 허용해야 한다. */
+static void rejects_invalid_string_character(void) {
+    ParseResult result = parse("insert into users values ('a@a.com')");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertEq(result.type, QUERY_TYPE_INVALID);
+    assertStrEq(result.error_message, "invalid string character");
+}
+
+/* 문자열도 EBNF의 ASCII 문자 집합만 허용해야 한다. */
+static void rejects_non_ascii_string_character(void) {
+    ParseResult result = parse("insert into users values ('\xE9')");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertEq(result.type, QUERY_TYPE_INVALID);
+    assertStrEq(result.error_message, "invalid string character");
+}
+
+/* value list는 비어 있을 수 없다. */
+static void rejects_empty_value_list(void) {
+    ParseResult result = parse("insert into users values ()");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertEq(result.type, QUERY_TYPE_INVALID);
+    assertStrEq(result.error_message, "expected value");
+}
+
+/* trailing input이 있으면 실패해야 한다. */
+static void rejects_trailing_input(void) {
+    ParseResult result = parse("select * from users extra");
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertEq(result.type, QUERY_TYPE_INVALID);
+    assertStrEq(result.error_message, "unexpected trailing input");
+}
+
+/* 메타데이터 로더는 하드코딩된 테이블 구조를 반환해야 한다. */
+static void loads_dummy_metadata(void) {
+    MetadataLoadResult load_result = load_metadata();
+
+    /* given */
+
+    /* when */
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertEq((long long) load_result.metadata.table_count, 2);
+    assertStrEq(load_result.metadata.tables[0].name, "users");
+    assertStrEq(load_result.metadata.tables[0].data_file_path, "users.csv");
+    assertEq((long long) load_result.metadata.tables[0].column_count, 3);
+    assertStrEq(load_result.metadata.tables[0].columns[0].name, "id");
+    assertEq(load_result.metadata.tables[0].columns[0].type, COLUMN_TYPE_NUMBER);
+    assertStrEq(load_result.metadata.tables[0].columns[1].name, "name");
+    assertEq(load_result.metadata.tables[0].columns[1].type, COLUMN_TYPE_TEXT);
+
+    free_metadata(&load_result.metadata);
+}
+
+/* 존재하는 테이블 메타데이터는 이름으로 찾아야 한다. */
+static void finds_table_metadata_by_name(void) {
+    MetadataLoadResult load_result = load_metadata();
+
+    /* given */
+
+    /* when */
+    const TableMetadata *table = find_table_metadata(&load_result.metadata, "logs");
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertTrue(table != NULL);
+    assertStrEq(table->name, "logs");
+    assertStrEq(table->data_file_path, "logs.csv");
+    assertEq((long long) table->column_count, 3);
+
+    free_metadata(&load_result.metadata);
+}
+
+/* 없는 테이블은 찾으면 NULL이어야 한다. */
+static void returns_null_for_missing_table_metadata(void) {
+    MetadataLoadResult load_result = load_metadata();
+
+    /* given */
+
+    /* when */
+    const TableMetadata *table = find_table_metadata(&load_result.metadata, "members");
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(table);
+
+    free_metadata(&load_result.metadata);
+}
+
+/* 존재하는 select 문은 메타데이터 검증을 통과해야 한다. */
+static void validates_select_query_against_metadata(void) {
+    MetadataLoadResult load_result = load_metadata();
+    ParseResult result = parse("select * from users");
+
+    /* given */
+
+    /* when */
+    SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(result.error_message);
+    assertEq(check.ok, 1);
+    assertNull(check.error_message);
+
+    free_parse_result(&result);
+    free_metadata(&load_result.metadata);
+}
+
+/* 없는 테이블을 select 하면 의미 검증에서 실패해야 한다. */
+static void rejects_unknown_table_in_select(void) {
+    MetadataLoadResult load_result = load_metadata();
+    ParseResult result = parse("select * from members");
+
+    /* given */
+
+    /* when */
+    SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(result.error_message);
+    assertEq(check.ok, 0);
+    assertStrEq(check.error_message, "unknown table");
+
+    free_parse_result(&result);
+    free_metadata(&load_result.metadata);
+}
+
+/* insert 값 개수는 컬럼 개수와 같아야 한다. */
+static void rejects_insert_when_value_count_differs(void) {
+    MetadataLoadResult load_result = load_metadata();
+    ParseResult result = parse("insert into users values (1, 'kim min')");
+
+    /* given */
+
+    /* when */
+    SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(result.error_message);
+    assertEq(check.ok, 0);
+    assertStrEq(check.error_message, "column count does not match value count");
+
+    free_parse_result(&result);
+    free_metadata(&load_result.metadata);
+}
+
+/* 숫자 컬럼에 문자열이 오면 insert는 실패해야 한다. */
+static void rejects_insert_when_number_column_receives_text(void) {
+    MetadataLoadResult load_result = load_metadata();
+    ParseResult result = parse("insert into users values ('one', 'kim min', admin_1)");
+
+    /* given */
+
+    /* when */
+    SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(result.error_message);
+    assertEq(check.ok, 0);
+    assertStrEq(check.error_message, "value type does not match column type");
+
+    free_parse_result(&result);
+    free_metadata(&load_result.metadata);
+}
+
+/* bare identifier는 텍스트 컬럼이면 허용해야 한다. */
+static void accepts_identifier_value_for_text_column(void) {
+    MetadataLoadResult load_result = load_metadata();
+    ParseResult result = parse("insert into users values (1, admin_1, member)");
+
+    /* given */
+
+    /* when */
+    SemanticCheckResult check = validate_query_against_metadata(&load_result.metadata, &result);
+
+    /* then */
+    assertNull(load_result.error_message);
+    assertNull(result.error_message);
+    assertEq(check.ok, 1);
+    assertNull(check.error_message);
+
+    free_parse_result(&result);
+    free_metadata(&load_result.metadata);
 }
 
 int main(void) {
@@ -274,5 +583,23 @@ int main(void) {
     continues_after_unknown_command();
     exits_cleanly_on_eof();
     exits_on_crlf_exit_command();
+    parses_select_query();
+    parses_select_query_with_surrounding_whitespace();
+    parses_insert_query_values();
+    parses_insert_query_with_flexible_whitespace();
+    rejects_table_name_starting_with_digit();
+    rejects_non_ascii_table_name();
+    rejects_invalid_string_character();
+    rejects_non_ascii_string_character();
+    rejects_empty_value_list();
+    rejects_trailing_input();
+    loads_dummy_metadata();
+    finds_table_metadata_by_name();
+    returns_null_for_missing_table_metadata();
+    validates_select_query_against_metadata();
+    rejects_unknown_table_in_select();
+    rejects_insert_when_value_count_differs();
+    rejects_insert_when_number_column_receives_text();
+    accepts_identifier_value_for_text_column();
     return 0;
 }
