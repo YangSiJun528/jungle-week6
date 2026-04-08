@@ -190,3 +190,14 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,windows,macos,jetbrains+all,cmake
+
+# Recursive project ignores for nested subprojects
+**/.idea/
+**/.vscode/
+**/.history/
+**/.ionide/
+**/cmake-build-*/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/compile_commands.json
+**/out/
