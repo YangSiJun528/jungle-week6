@@ -118,7 +118,14 @@
 - 프롬프트 로그를 남겨서 회고의 근거를 확보했다
 - GitHub PR 리뷰 방식으로 협업해본 경험이 남았다
 
-> TODO: PR 리뷰 이미지 캡처 삽입
+<p align="center">
+  <img src="docs/files/pr_review_img1.png" alt="PR review 1" width="48%">
+  <img src="docs/files/pr_review_img2.png" alt="PR review 2" width="48%">
+</p>
+<p align="center">
+  <img src="docs/files/pr_review_img3.png" alt="PR review 3" width="48%">
+  <img src="docs/files/pr_review_img4.png" alt="PR review 4" width="48%">
+</p>
 
 ### 8-2. 아쉬웠던 점
 
