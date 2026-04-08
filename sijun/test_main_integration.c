@@ -1,10 +1,10 @@
 #define _POSIX_C_SOURCE 200809L
 
-#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
+#include "test_util.h"
 #include "utils.h"
 
 /**
@@ -20,7 +20,7 @@ static int run_command(const char *command, char *output, size_t output_size) {
     int ch;
     int status;
 
-    assert(pipe != NULL);
+    assertTrue(pipe != NULL);
 
     while ((ch = fgetc(pipe)) != EOF && length + 1 < output_size) {
         output[length++] = (char) ch;
@@ -28,8 +28,8 @@ static int run_command(const char *command, char *output, size_t output_size) {
     output[length] = '\0';
 
     status = pclose(pipe);
-    assert(status != -1);
-    assert(WIFEXITED(status));
+    assertTrue(status != -1);
+    assertTrue(WIFEXITED(status));
     return WEXITSTATUS(status);
 }
 
@@ -45,8 +45,8 @@ static void prints_text_until_exit(const char *program_path) {
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
-    assert(exit_code == OK);
-    assert(strcmp(output, "hello\n") == 0);
+    assertEq(exit_code, OK);
+    assertStrEq(output, "hello\n");
 }
 
 /* .exit 없이 EOF가 와도 마지막 입력을 출력하고 종료해야 한다. */
@@ -61,8 +61,8 @@ static void prints_text_until_eof(const char *program_path) {
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
-    assert(exit_code == OK);
-    assert(strcmp(output, "hello\n") == 0);
+    assertEq(exit_code, OK);
+    assertStrEq(output, "hello\n");
 }
 
 /* CRLF 입력의 .exit도 정상 종료해야 한다. */
@@ -77,12 +77,12 @@ static void exits_on_crlf_exit(const char *program_path) {
     int exit_code = run_command(command, output, sizeof(output));
 
     /* then */
-    assert(exit_code == OK);
-    assert(strcmp(output, "hello\n") == 0);
+    assertEq(exit_code, OK);
+    assertStrEq(output, "hello\n");
 }
 
 int main(int argc, char *argv[]) {
-    assert(argc == 2);
+    assertEq(argc, 2);
 
     prints_text_until_exit(argv[1]);
     prints_text_until_eof(argv[1]);
