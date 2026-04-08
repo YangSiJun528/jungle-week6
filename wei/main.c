@@ -25,6 +25,8 @@ typedef struct {
     char *values;
 } Statement;
 
+#include "execute.c"
+
 static bool end_with_semicolon(char *text) {
     size_t length = strlen(text);
 
@@ -170,12 +172,19 @@ int main(void) {
             return 0;
         }
 
-        /* 이번 단계는 "실행"이 아니라 "문법 해석" 단계다.
-         * 따라서 parse가 성공하면 아무 출력 없이 다음 입력을 받고,
-         * 실패하면 아직 지원하지 않는 문장으로 보고 에러 메시지를 보여준다.
-         */
-        if (parse(line).status == PARSE_ERROR) {
+        /* 파싱이 끝나면 실행 단계로 넘기고, 결과 문자열을 그대로 출력한다. */
+        Statement statement = parse(line);
+        ExecutionResult result;
+
+        if (statement.status == PARSE_ERROR) {
             printf("Unrecognized command\n");
+            continue;
+        }
+
+        result = execute(statement);
+        if (result.output != NULL) {
+            printf("%s", result.output);
+            free(result.output);
         }
     }
 }
