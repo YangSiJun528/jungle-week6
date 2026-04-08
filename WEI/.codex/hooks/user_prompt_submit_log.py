@@ -10,8 +10,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-PROJECT_ROOT = REPO_ROOT / "WEI" if (REPO_ROOT / "WEI").is_dir() else REPO_ROOT
-LOG_PATH = PROJECT_ROOT / "logs" / "user-prompts.jsonl"
+LOG_PATH = REPO_ROOT / "logs" / "user-prompts.jsonl"
 
 
 def main() -> int:

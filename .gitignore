@@ -1,3 +1,6 @@
 logs/
 program
 tests/test_main
+WEI/logs/
+WEI/program
+WEI/tests/test_main
