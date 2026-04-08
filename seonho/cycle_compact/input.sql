@@ -1,5 +1,5 @@
-insert 1 a@a.com
-insert 2 b@b.com
-insert 3 c@c.com
-select
+insert hi into table2
+insert hello into table2
+select * from table2
+select * from table1
 .exit
